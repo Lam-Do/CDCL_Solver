@@ -31,14 +31,16 @@ void branching();
 void simplify();
 void removeSATClauses();
 tuple<Literal *, bool> heuristicMOM();
-void removeUnitClauses();
+void removeInitialUnitClauses();
 void runDPLL(const std::string&);
 void reset();
 void printAllData();
 
 // Global definition
-const int MAX_RUN_TIME = 60000; // Determine max runtime for solver, in milisecond.
-const bool printProcess = false; // variable enable output data to console for monitoring solving process
+int MAX_RUN_TIME = 60000; // Determine max runtime for solver, in milisecond.
+bool print_parsing_result = true;
+bool print_formula = false;
+bool printProcess = true; // variable enable output data to console for monitoring solving process
 
 const bool isForced = true;
 bool isSAT = false;
@@ -46,6 +48,7 @@ bool isUNSAT = false;
 int num_Clause = 0;
 int num_Variable= 0;
 std::chrono::duration<double, std::milli> run_time = std::chrono::high_resolution_clock::duration::zero();
+
 
 int main() {
     string path;
@@ -85,19 +88,19 @@ void runDPLL(const std::string& path) {
     vector<vector<int>> formula = readDIMACS(path);
 
     if (!formula.empty()) {
-        // parse formula into data structure
+        // parse formula into data structures
         parse(formula);
         simplify();
-        while (!isSAT && !isUNSAT && run_time.count() < MAX_RUN_TIME) {
+        while (!isSAT && !isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::conflict) {
             unitPropagation();
-            if (Literal::unit_queue.empty()) {
+            if (Literal::unit_queue.empty() && !Clause::conflict) {
                 pureLiteralsEliminate();
-            }
-            if (Clause::conflict) {
-                backtracking();
             }
             if (!isSAT && !isUNSAT && Literal::unit_queue.empty() && !Clause::conflict) {
                 branching();
+            }
+            if (Clause::conflict) {
+                backtracking();
             }
             isSAT = Clause::checkSAT();
             run_time = std::chrono::high_resolution_clock::now() - start_time; // update runtime
@@ -202,6 +205,8 @@ vector<vector<int>> readDIMACS(const string& file_name) {
     }
     if (printProcess) {
         cout << "Finished read file " << file_name << endl;
+    }
+    if (print_formula) {
         cout << "Solving SAT instance: " << "\n";
         for (auto c : formula) {
             for (auto v : c) {
@@ -251,7 +256,7 @@ void parse(const vector<vector<int>>& formula) {
     }
 
     // Print out all parsed data
-    if (printProcess) {
+    if (print_parsing_result) {
         cout << "Number of literals: " << Literal::unorderedMap.size() << "\n";
         cout << "Number of clauses: " << Clause::list.size() << "\n";
         printAllData();
@@ -263,7 +268,7 @@ void parse(const vector<vector<int>>& formula) {
  */
 void unitPropagation() {
     if (printProcess) cout << "Unit propagating..." << "\n";
-    while (!(Literal::unit_queue.empty())) {
+    while (!(Literal::unit_queue.empty()) && !Clause::conflict) {
         Literal* next_literal = Literal::unit_queue.front();
         Literal::unit_queue.pop();
         Clause* unit_clause = next_literal->reason;
@@ -283,15 +288,20 @@ void unitPropagation() {
  * Literals will be unassigned its value in process.
  */
 void backtracking() {
+    // Some outputs to console, don't effect solving process
     if (Assignment::enablePrintAll) {
         std::cout << "\n";
         std::cout << "----------------" << "\n";
     }
     Assignment::printAll();
+
+    // pop all forced assignment, stop at last branching assignment or stack empty
     while (!Assignment::stack.empty() && Assignment::stack.top()->isForced) {
         Assignment::stack.top()->assigned_literal->unassignValue();
         Assignment::stack.pop();
     }
+
+    // branching -> forced
     if (!Assignment::stack.empty()) {
         // Save value of the top assignment before assigning new one which push a new assignment to top of stack
         Literal* top_literal = Assignment::stack.top()->assigned_literal;
@@ -299,15 +309,16 @@ void backtracking() {
 
         top_literal->unassignValue();
         Assignment::stack.pop();
-
+        //empty unit clause queue
         while (!Literal::unit_queue.empty()) {
             Literal::unit_queue.pop();
         }
-
+        // assign opposite value
         top_literal->assignValue(!old_value, isForced); // no need to push new assignment here since assignValue() does it.
         Clause::conflict = false; // remove conflict flag
     } else {
         isUNSAT = true; // flag UNSAT in case stack is empty meaning all assignments is forced and there isn't any another branch
+        if (printProcess) std::cout << "UNSAT" << "\n";
     }
     if (printProcess) cout << "Finished backtracking" << endl;
 }
@@ -402,22 +413,30 @@ unordered_set<T> findIntersection(const unordered_set<T>& s1, const unordered_se
 void simplify() {
     if (printProcess) cout << "Start simplifying" << "\n";
     removeSATClauses();
-    removeUnitClauses();
+    removeInitialUnitClauses();
     if (printProcess) cout << "Finish simplifying" << endl;
 }
 
 /**
  * Any unit clause with one literal will have that literal assign value by force
  */
-void removeUnitClauses() {
+void removeInitialUnitClauses() {
     if (printProcess) cout << "Finding initial unit clauses ..." << "\n";
     for (const auto& c : Clause::list) {
-        if (c->unset_literals.size() == 1) {
+        int literal_count = c->pos_literals_list.size() + c->neg_literals_list.size();
+        if (literal_count == 1) {
             Literal* l = *(c->unset_literals.begin());
-            if (c->pos_literals_list.empty()) {l->assignValue(false, isForced);}
-            else {l->assignValue(true, isForced);}
+            if (c->pos_literals_list.empty()) { // Only use this condition to finding suitable value in this case with initial unit clauses
+                std::cout << "check by removeInitialUnitClauses!!!!!!" << std::endl;
+                l->assignValue(false, isForced);
+            }
+            else {
+                l->assignValue(true, isForced);
+                std::cout << "check 2 by removeUniClauses" << std::endl;
+            }
         }
     }
+    if (Clause::conflict) isUNSAT = true; // Conflict by initial unit clauses (all forced assignment) means unsatisfiable
 }
 
 /**

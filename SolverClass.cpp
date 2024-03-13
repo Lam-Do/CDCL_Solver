@@ -3,6 +3,8 @@
 #include <algorithm>
 #include "SolverClass.h"
 
+const bool printProcess = true;
+
 void Literal::setFree() {
     this->isFree = true;
 }
@@ -22,7 +24,9 @@ void Literal::assignValue(bool value, bool isForced) {
     if (this->isFree == true) {
         this->isFree = false;
         this->value = value;
-
+        if (printProcess) {
+            std::cout << "Literal " << this->id << " is assigned " << value << "\n";
+        }
         Assignment* new_assign = new Assignment(isForced, this);
 
         // change data in related clauses accordingly to occurrence
@@ -31,6 +35,9 @@ void Literal::assignValue(bool value, bool isForced) {
                 clause->unset_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
+                if (printProcess) {
+                    std::cout << "Clause " << clause->id << " SAT" << "\n";
+                }
             }
             for (auto clause : this->neg_occ) {
                 clause->unset_literals.erase(this);
@@ -38,9 +45,17 @@ void Literal::assignValue(bool value, bool isForced) {
                     auto free_literal = *(clause->unset_literals.begin()); // Last unset literal of this clause after assign this literal
                     Literal::unit_queue.push(free_literal);
                     free_literal->reason = clause;
+                    if (printProcess) {
+                        std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id <<"\n";
+                        Literal* last_lit = *std::begin(clause->unset_literals);
+                        std::cout << "Last lit " << last_lit->id << "\n";
+                    }
                 }
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
                     //report conflict when a clause has no free literal but still UNSAT
+                    if (printProcess) {
+                        std::cout << "Conflict at Clause " << clause->id << "\n";
+                    }
                     Clause::conflict = true;
                 }
             }
@@ -49,6 +64,9 @@ void Literal::assignValue(bool value, bool isForced) {
                 clause->unset_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
+                if (printProcess) {
+                    std::cout << "Clause " << clause->id << " SAT" << "\n";
+                }
             }
             for (auto clause : this->pos_occ) {
                 clause->unset_literals.erase(this);
@@ -56,10 +74,18 @@ void Literal::assignValue(bool value, bool isForced) {
                     auto free_literal = *(clause->unset_literals.begin());
                     Literal::unit_queue.push(free_literal); //
                     free_literal->reason = clause;
+                    if (printProcess) {
+                        std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id << "\n";
+                        Literal* last_lit = *std::begin(clause->unset_literals);
+                        std::cout << "Last lit " << last_lit->id << "\n";
+                    }
                 }
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
                     // check SAT status, if unSAT report conflict
                     Clause::conflict = true;
+                    if (printProcess) {
+                        std::cout << "Conflict at Clause " << clause->id << "\n";
+                    }
                 }
             }
         }
@@ -78,6 +104,9 @@ void Literal::unassignValue() {
             clause->sat_by.erase(this);
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
+                if (printProcess) {
+                    std::cout << "Clause " << clause->id << " UNSAT" << "\n";
+                }
             }
             clause->unset_literals.insert(this);
         }
@@ -89,6 +118,9 @@ void Literal::unassignValue() {
             clause->sat_by.erase(this);
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
+                if (printProcess) {
+                    std::cout << "Clause " << clause->id << " UNSAT" << "\n";
+                }
             }
             clause->unset_literals.insert(this);
         }
