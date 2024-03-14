@@ -3,7 +3,7 @@
 #include <algorithm>
 #include "SolverClass.h"
 
-const bool printProcess = true;
+bool print_process_2 = false;
 
 void Literal::setFree() {
     this->isFree = true;
@@ -24,7 +24,7 @@ void Literal::assignValue(bool value, bool isForced) {
     if (this->isFree == true) {
         this->isFree = false;
         this->value = value;
-        if (printProcess) {
+        if (print_process_2) {
             std::cout << "Literal " << this->id << " is assigned " << value << "\n";
         }
         Assignment* new_assign = new Assignment(isForced, this);
@@ -35,7 +35,7 @@ void Literal::assignValue(bool value, bool isForced) {
                 clause->unset_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
-                if (printProcess) {
+                if (print_process_2) {
                     std::cout << "Clause " << clause->id << " SAT" << "\n";
                 }
             }
@@ -45,7 +45,7 @@ void Literal::assignValue(bool value, bool isForced) {
                     auto free_literal = *(clause->unset_literals.begin()); // Last unset literal of this clause after assign this literal
                     Literal::unit_queue.push(free_literal);
                     free_literal->reason = clause;
-                    if (printProcess) {
+                    if (print_process_2) {
                         std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id <<"\n";
                         Literal* last_lit = *std::begin(clause->unset_literals);
                         std::cout << "Last lit " << last_lit->id << "\n";
@@ -53,7 +53,7 @@ void Literal::assignValue(bool value, bool isForced) {
                 }
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
                     //report conflict when a clause has no free literal but still UNSAT
-                    if (printProcess) {
+                    if (print_process_2) {
                         std::cout << "Conflict at Clause " << clause->id << "\n";
                     }
                     Clause::conflict = true;
@@ -64,7 +64,7 @@ void Literal::assignValue(bool value, bool isForced) {
                 clause->unset_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
-                if (printProcess) {
+                if (print_process_2) {
                     std::cout << "Clause " << clause->id << " SAT" << "\n";
                 }
             }
@@ -74,7 +74,7 @@ void Literal::assignValue(bool value, bool isForced) {
                     auto free_literal = *(clause->unset_literals.begin());
                     Literal::unit_queue.push(free_literal); //
                     free_literal->reason = clause;
-                    if (printProcess) {
+                    if (print_process_2) {
                         std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id << "\n";
                         Literal* last_lit = *std::begin(clause->unset_literals);
                         std::cout << "Last lit " << last_lit->id << "\n";
@@ -83,7 +83,7 @@ void Literal::assignValue(bool value, bool isForced) {
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
                     // check SAT status, if unSAT report conflict
                     Clause::conflict = true;
-                    if (printProcess) {
+                    if (print_process_2) {
                         std::cout << "Conflict at Clause " << clause->id << "\n";
                     }
                 }
@@ -104,7 +104,7 @@ void Literal::unassignValue() {
             clause->sat_by.erase(this);
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
-                if (printProcess) {
+                if (print_process_2) {
                     std::cout << "Clause " << clause->id << " UNSAT" << "\n";
                 }
             }
@@ -118,7 +118,7 @@ void Literal::unassignValue() {
             clause->sat_by.erase(this);
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
-                if (printProcess) {
+                if (print_process_2) {
                     std::cout << "Clause " << clause->id << " UNSAT" << "\n";
                 }
             }
@@ -303,5 +303,49 @@ void Assignment::printHistory() {
             s.pop();
         }
         std::cout << std::endl;
+    }
+}
+/**
+ * creat new Literal or update data structure when creating a new clause
+ * @param l id of the literal
+ * @param new_clause point to the clause contain the literal
+ */
+void Literal::setLiteral(int l, Clause* new_clause) {
+    if (Literal::id_list.count(abs(l)) == 0) { // id is not in the list (count = 0) meaning new Literal
+        if (l >= 0) {
+            auto* new_literal = new Literal(abs(l));
+            new_literal->updateStaticData();
+            // connecting literals and clauses
+            new_literal->pos_occ.insert(new_clause);
+            new_clause->appendLiteral(new_literal, true);
+        } else {
+            auto* new_literal = new Literal(abs(l));
+            new_literal->updateStaticData();
+            // connecting literals and clauses
+            new_literal->neg_occ.insert(new_clause);
+            new_clause->appendLiteral(new_literal, false);
+        }
+    } else {
+        auto* current_literal = Literal::unorderedMap[abs(l)];
+        if (l >= 0) {
+            current_literal->pos_occ.insert(new_clause);
+            new_clause->appendLiteral(current_literal, true);
+        } else {
+            current_literal->neg_occ.insert(new_clause);
+            new_clause->appendLiteral(current_literal, false);
+        }
+    }
+}
+
+/**
+ * creat a new clause
+ * update all data structures
+ * @param c a new clause in form of vector of literal_id
+ */
+void Clause::setNewClause(std::vector<int>& c) {
+    auto* new_clause = new Clause(Clause::count);
+    new_clause->updateStaticData();
+    for (auto l : c) {
+        Literal::setLiteral(l, new_clause);
     }
 }

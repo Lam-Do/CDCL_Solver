@@ -25,7 +25,7 @@ public:
     Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagation to trace back necessary value for assigning.
 
     static int count;
-    static std::unordered_map<int, Literal*> unorderedMap;
+    static std::unordered_map<int, Literal*> unorderedMap; // dictionary id to address
     static std::unordered_set<int> id_list;
     static std::queue<Literal*> unit_queue;
 
@@ -35,7 +35,7 @@ public:
     void unassignValue();
     void printData();
     void updateStaticData();
-
+    static void setLiteral(int l, Clause* new_clause);
     int getActualPosOcc(int);
 
     int getActualNegOcc(int);
@@ -59,7 +59,7 @@ public:
     int getUnsetLiteralsCount() const;
     void printData();
     void updateStaticData();
-
+    static void setNewClause(std::vector<int>& c);
     static bool checkSAT();
 };
 
@@ -75,6 +75,7 @@ struct Assignment {
     static std::stack<Assignment*> stack;
     static std::vector<std::stack<Assignment*>> assignment_history; // Not used variable
     static bool enablePrintAll;
+    static std::string branching_heuristic;
 
     static void printAll();
     static void printHistory();
