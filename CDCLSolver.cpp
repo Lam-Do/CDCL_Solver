@@ -4,12 +4,12 @@
 #include "SATSolver.h"
 
 
-void Literal::assignValueCDCL(bool value, bool isForced) {
+void Literal::assignValueCDCL(bool value, bool status) {
     if (this->isFree == true) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
         this->isFree = false;
         this->value = value;
 
-        auto* new_assignment = new Assignment(isForced, this);
+        auto* new_assignment = new Assignment(status, this);
         new_assignment->updateStaticData();
 
         if (value == true) {
@@ -87,9 +87,40 @@ void Literal::assignValueCDCL(bool value, bool isForced) {
 }
 
 void Literal::unassignValueCDCL() {
-
+    // No different from DPLL
+    this->unassignValueDPLL();
 }
 
+void Assignment::backtrackingCDCL() {
+
+}
 void Clause::reportConflict() {
     Clause::conflict = true;
+}
+
+/**
+ * Set up 2 watched literals for clauses
+ */
+void Clause::setWatchedLiterals() {
+    for (auto* c : Clause::list) {
+        // Choose 2 watched literals for each clauses
+        int clause_size = c->pos_literals_list.size() + c->neg_literals_list.size();
+        if (!c->SAT && clause_size >= 2) { // Only SAT by simplify(),
+            c->watched_literal_1 = *(c->unset_literals.begin()); // randomly access due to unordered
+            std::unordered_set<Literal*> s = c->unset_literals;
+            s.erase(c->watched_literal_1);
+            c->watched_literal_2 = *(s.begin());
+        }
+        // Add clause address to pos/neg_watched_occ of watched literals
+        if (c->pos_literals_list.count(c->watched_literal_1) == 1) {
+            c->watched_literal_1->pos_watched_occ.insert(c);
+        } else {
+            c->watched_literal_1->neg_watched_occ.insert(c);
+        }
+        if (c->pos_literals_list.count(c->watched_literal_2) == 1) {
+            c->watched_literal_2->pos_watched_occ.insert(c);
+        } else {
+            c->watched_literal_2->neg_watched_occ.insert(c);
+        }
+    }
 }

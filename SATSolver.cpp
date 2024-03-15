@@ -8,128 +8,6 @@ bool print_process_2 = false;
 void Literal::setFree() {
     this->isFree = true;
 }
-/**
- * Assign a value to the literal.
- * A New object of assignment class will also be creat here.
- * All associated data will be update accordingly.
- * After data updated, new appear unit UNSAT clauses will have the last literal push to unit_queue.
- * Clauses with no free literal left but still UNSAT will trigger conflict flag.
- * @param value Value assign to the literal
- * @param isForced "true" if by force or "false" if branching
- */
-void Literal::assignValue(bool value, bool isForced) {
-    // assign value and free status
-    // literals could be pushed to unit_queue more than once when they are the last unset literal of more than one clauses.
-    // do nothing, skip assigning value process if the literal is not free
-    if (this->isFree == true) {
-        this->isFree = false;
-        this->value = value;
-        if (print_process_2) {
-            std::cout << "Literal " << this->id << " is assigned " << value << "\n";
-        }
-        auto* new_assignment = new Assignment(isForced, this);
-        new_assignment->updateStaticData();
-
-        // change data in related clauses accordingly to occurrence
-        if (value == true) {
-            for (auto clause : this->pos_occ) {
-                clause->unset_literals.erase(this);
-                clause->SAT = true;
-                clause->sat_by.insert(this);
-                if (print_process_2) {
-                    std::cout << "Clause " << clause->id << " SAT" << "\n";
-                }
-            }
-            for (auto clause : this->neg_occ) {
-                clause->unset_literals.erase(this);
-                if (clause->getUnsetLiteralsCount() == 1 && !clause->SAT) {
-                    auto free_literal = *(clause->unset_literals.begin()); // Last unset literal of this clause after assign this literal
-                    Literal::unit_queue.push(free_literal);
-                    free_literal->reason = clause;
-                    if (print_process_2) {
-                        std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id <<"\n";
-                        Literal* last_lit = *std::begin(clause->unset_literals);
-                        std::cout << "Last lit " << last_lit->id << "\n";
-                    }
-                }
-                if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
-                    //report conflict when a clause has no free literal but still UNSAT
-                    if (print_process_2) {
-                        std::cout << "Conflict at Clause " << clause->id << "\n";
-                    }
-                    Clause::conflict = true;
-                }
-            }
-        } else {
-            for (auto clause : this->neg_occ) {
-                clause->unset_literals.erase(this);
-                clause->SAT = true;
-                clause->sat_by.insert(this);
-                if (print_process_2) {
-                    std::cout << "Clause " << clause->id << " SAT" << "\n";
-                }
-            }
-            for (auto clause : this->pos_occ) {
-                clause->unset_literals.erase(this);
-                if (clause->getUnsetLiteralsCount() == 1 && !clause->SAT) {
-                    auto free_literal = *(clause->unset_literals.begin());
-                    Literal::unit_queue.push(free_literal); //
-                    free_literal->reason = clause;
-                    if (print_process_2) {
-                        std::cout << "Clause " << clause->id << " became unit clause by literal " << this->id << "\n";
-                        Literal* last_lit = *std::begin(clause->unset_literals);
-                        std::cout << "Last lit " << last_lit->id << "\n";
-                    }
-                }
-                if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
-                    // check SAT status, if unSAT report conflict
-                    Clause::conflict = true;
-                    if (print_process_2) {
-                        std::cout << "Conflict at Clause " << clause->id << "\n";
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Unassigning value the literal.
- * Data of related clauses with be updated. Clauses will not be set to UNSAT as long as there is a literal in sat_by list.
- */
-void Literal::unassignValue() {
-    this->setFree();
-    this->reason = nullptr;
-    if (this->value == true) {
-        for (auto clause : this->pos_occ) {
-            clause->sat_by.erase(this);
-            if (clause->sat_by.empty()) {
-                clause->SAT = false;
-                if (print_process_2) {
-                    std::cout << "Clause " << clause->id << " UNSAT" << "\n";
-                }
-            }
-            clause->unset_literals.insert(this);
-        }
-        for (auto clause : this->neg_occ) {
-            clause->unset_literals.insert(this);
-        }
-    } else {
-        for (auto clause : this->neg_occ) {
-            clause->sat_by.erase(this);
-            if (clause->sat_by.empty()) {
-                clause->SAT = false;
-                if (print_process_2) {
-                    std::cout << "Clause " << clause->id << " UNSAT" << "\n";
-                }
-            }
-            clause->unset_literals.insert(this);
-        }
-        for (auto clause : this->pos_occ) {
-            clause->unset_literals.insert(this);
-        }
-    }
-}
 
 /**
  * Counting all positive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called.
@@ -244,7 +122,7 @@ void Clause::printData() {
  */
 void Literal::updateStaticData() {
     Literal::count++;
-    Literal::unorderedMap[this->id] = this;
+    Literal::id2Ad_dict[this->id] = this;
     Literal::id_list.insert(id);
 }
 
@@ -275,7 +153,7 @@ void Assignment::printAll() {
         while (!reversed_stack.empty()) {
             Literal* l = reversed_stack.top()->assigned_literal;
             std::cout << "[" << l->id << "|" << l->value << "|";
-            if (reversed_stack.top()->isForced) {std::cout << "f]";}
+            if (reversed_stack.top()->status) {std::cout << "f]";}
             else {std::cout << "b]";}
             std::cout << "-";
             reversed_stack.pop();
@@ -295,7 +173,7 @@ void Assignment::printHistory() {
             // get first assignment
             Literal* l = s.top()->assigned_literal;
             std::string a = "[" + std::to_string(l->id) + "|" + std::to_string(l->value) + "|";
-            if (s.top()->isForced) {a += "f]";}
+            if (s.top()->status) { a += "f]";}
             else {a += "b]";}
 
             if (print_rest || printed_list.count(a) == 0 ) {
@@ -333,13 +211,13 @@ void Literal::setLiteral(int l, Clause* new_clause) {
             new_clause->appendLiteral(new_literal, false);
         }
     } else {
-        auto* current_literal = Literal::unorderedMap[abs(l)];
+        auto* updating_literal = Literal::id2Ad_dict[abs(l)];
         if (l >= 0) {
-            current_literal->pos_occ.insert(new_clause);
-            new_clause->appendLiteral(current_literal, true);
+            updating_literal->pos_occ.insert(new_clause);
+            new_clause->appendLiteral(updating_literal, true);
         } else {
-            current_literal->neg_occ.insert(new_clause);
-            new_clause->appendLiteral(current_literal, false);
+            updating_literal->neg_occ.insert(new_clause);
+            new_clause->appendLiteral(updating_literal, false);
         }
     }
 }

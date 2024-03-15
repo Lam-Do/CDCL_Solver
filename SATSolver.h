@@ -27,16 +27,16 @@ public:
     Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagation to trace back necessary value for assigning.
 
     static int count;
-    static std::unordered_map<int, Literal*> unorderedMap; // dictionary id to address
+    static std::unordered_map<int, Literal*> id2Ad_dict; // dictionary id to address
     static std::unordered_set<int> id_list;
     static std::queue<Literal*> unit_queue;
 
     explicit Literal(int id) : id(id) {};
     void updateStaticData();
     void setFree();
-    void assignValue(bool,bool);
+    void assignValueDPLL(bool, bool);
     void assignValueCDCL(bool, bool);
-    void unassignValue();
+    void unassignValueDPLL();
     void unassignValueCDCL();
     int getActualPosOcc(int);
     int getActualNegOcc(int);
@@ -68,6 +68,7 @@ public:
     void reportConflict();
 
     static void setNewClause(std::vector<int>& c);
+    static void setWatchedLiterals();
     static bool checkSAT();
 };
 
@@ -75,19 +76,29 @@ public:
  * Assignment is pushed to stack directly in constructor without calling any function.
  */
 struct Assignment {
-    bool isForced;
+    bool status;
     Literal* assigned_literal;
 
-    Assignment(bool status, Literal* lit) : isForced(status), assigned_literal(lit) {};
+    Assignment(bool status, Literal* lit) : status(status), assigned_literal(lit) {};
 
     static std::stack<Assignment*> stack;
     static std::vector<std::stack<Assignment*>> assignment_history; // Not used
     static bool enablePrintAll;
     static std::string branching_heuristic;
+    const static bool isForced = true;
 
     void updateStaticData();
+    static void backtrackingDPLL();
+    static void backtrackingCDCL();
     static void printAll();
     static void printHistory();
+};
+
+struct Formula {
+    static bool isSAT;
+    static bool isUNSAT;
+    static int var_count;
+    static int clause_count;
 };
 
 #endif //CDCL_SOLVER_SATSOLVER_H
