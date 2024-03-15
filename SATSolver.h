@@ -1,5 +1,5 @@
-#ifndef CDCL_SOLVER_SOLVERCLASS_H
-#define CDCL_SOLVER_SOLVERCLASS_H
+#ifndef CDCL_SOLVER_SATSOLVER_H
+#define CDCL_SOLVER_SATSOLVER_H
 
 #include <vector>
 #include <stack>
@@ -32,15 +32,17 @@ public:
     static std::queue<Literal*> unit_queue;
 
     explicit Literal(int id) : id(id) {};
+    void updateStaticData();
     void setFree();
     void assignValue(bool,bool);
+    void assignValueCDCL(bool, bool);
     void unassignValue();
-    void printData();
-    void updateStaticData();
-    static void setLiteral(int l, Clause* new_clause);
+    void unassignValueCDCL();
     int getActualPosOcc(int);
-
     int getActualNegOcc(int);
+
+    static void setLiteral(int l, Clause*);
+    void printData();
 };
 
 class Clause {
@@ -63,6 +65,8 @@ public:
     int getUnsetLiteralsCount() const;
     void printData();
     void updateStaticData();
+    void reportConflict();
+
     static void setNewClause(std::vector<int>& c);
     static bool checkSAT();
 };
@@ -74,15 +78,16 @@ struct Assignment {
     bool isForced;
     Literal* assigned_literal;
 
-    Assignment(bool status, Literal* lit) : isForced(status), assigned_literal(lit) {stack.push(this);};
+    Assignment(bool status, Literal* lit) : isForced(status), assigned_literal(lit) {};
 
     static std::stack<Assignment*> stack;
-    static std::vector<std::stack<Assignment*>> assignment_history; // Not used variable
+    static std::vector<std::stack<Assignment*>> assignment_history; // Not used
     static bool enablePrintAll;
     static std::string branching_heuristic;
 
+    void updateStaticData();
     static void printAll();
     static void printHistory();
 };
 
-#endif //CDCL_SOLVER_SOLVERCLASS_H
+#endif //CDCL_SOLVER_SATSOLVER_H

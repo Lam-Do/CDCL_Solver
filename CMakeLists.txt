@@ -3,4 +3,4 @@ project(CDCL_Solver)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(CDCL_Solver main.cpp SolverClass.cpp SolverClass.h)
+add_executable(CDCL_Solver main.cpp SATSolver.cpp SATSolver.h CDCLSolver.cpp)

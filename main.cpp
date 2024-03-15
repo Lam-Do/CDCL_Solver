@@ -4,7 +4,7 @@
 #include <string>
 #include <chrono>
 #include <filesystem>
-#include "SolverClass.h"
+#include "SATSolver.h"
 
 using namespace std;
 namespace fs = std::filesystem;

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <ostream>
 #include <algorithm>
-#include "SolverClass.h"
+#include "SATSolver.h"
 
 bool print_process_2 = false;
 
@@ -18,8 +18,8 @@ void Literal::setFree() {
  * @param isForced "true" if by force or "false" if branching
  */
 void Literal::assignValue(bool value, bool isForced) {
-    //assign value and free status
-    // literals could be pushed to unit_queue more than once when they are the last unset literal of more than one UNSAT clauses.
+    // assign value and free status
+    // literals could be pushed to unit_queue more than once when they are the last unset literal of more than one clauses.
     // do nothing, skip assigning value process if the literal is not free
     if (this->isFree == true) {
         this->isFree = false;
@@ -27,7 +27,8 @@ void Literal::assignValue(bool value, bool isForced) {
         if (print_process_2) {
             std::cout << "Literal " << this->id << " is assigned " << value << "\n";
         }
-        Assignment* new_assign = new Assignment(isForced, this);
+        auto* new_assignment = new Assignment(isForced, this);
+        new_assignment->updateStaticData();
 
         // change data in related clauses accordingly to occurrence
         if (value == true) {
@@ -180,14 +181,6 @@ void Literal::printData() {
     else std::cout << " - satisfy clause " << this->reason->id << std::endl;
 }
 
-/**
- * Update number of literals, unordered map literal's id to adress and list of id.
- */
-void Literal::updateStaticData() {
-    Literal::count++;
-    Literal::unorderedMap[this->id] = this;
-    Literal::id_list.insert(id);
-}
 
 /**
  * Save literal to clause's positive and negative literal list accordingly, and also all to free literals list.
@@ -247,11 +240,24 @@ void Clause::printData() {
 }
 
 /**
+ * Update number of literals, unordered map literal's id to adress and list of id.
+ */
+void Literal::updateStaticData() {
+    Literal::count++;
+    Literal::unorderedMap[this->id] = this;
+    Literal::id_list.insert(id);
+}
+
+/**
  * Update number of clauses and list of clauses.
  */
 void Clause::updateStaticData() {
     Clause::count++;
     Clause::list.emplace_back(this);
+}
+
+void Assignment::updateStaticData() {
+    stack.push(this);
 }
 
 /**
