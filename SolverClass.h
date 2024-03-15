@@ -21,6 +21,8 @@ public:
     bool value = false; // value of true or false, the literal always has a value during processing but consider has no value if it's free.
     std::unordered_set<Clause*> pos_occ; // All positive/negative occurrences. This is not changed during solving process.
     std::unordered_set<Clause*> neg_occ;
+    std::unordered_set<Clause*> pos_watched_occ;
+    std::unordered_set<Clause*> neg_watched_occ;
     int branching_level_dp;
     Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagation to trace back necessary value for assigning.
 
@@ -44,10 +46,12 @@ public:
 class Clause {
 public:
     const int id;
-    std::vector<Literal*> pos_literals_list; // List of positive/negative literals, is not changed duing solving process
-    std::vector<Literal*> neg_literals_list;
+    std::unordered_set<Literal*> pos_literals_list; // List of positive/negative literals, doesn't change during solving process
+    std::unordered_set<Literal*> neg_literals_list;
     std::unordered_set<Literal*> unset_literals = {};// List of free literals, reduce when one is assigned, and added again when unassign
     std::unordered_set<Literal*> sat_by = {}; // List of positive literals with value 1 and negative literal with value 0, making the clause SAT
+    Literal* watched_literal_1 = nullptr;
+    Literal* watched_literal_2 = nullptr;
     bool SAT = false;
 
     static int count;

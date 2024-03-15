@@ -42,6 +42,7 @@ void printAllData();
 void runDPLL(const std::string&);
 //CDCL
 void runCDCL(const std::string&);
+void setWatchedLiterals();
 
 // Global definition
 const bool isForced = true;
@@ -60,9 +61,11 @@ bool printCDCLProcess = true;
 
 
 /**
- CDCL new variables and function:
+ CDCL implement log:
     void runCDCL(const std::string&);
     string Assignment::branching_heuristic; // keeping branching_heuristic's name
+    setWatchedLiterals()
+    refactor clause pos/neg_literals_list to unordered set
  */
 
 int main() {
@@ -150,7 +153,63 @@ void runDPLL(const std::string& path) {
  * @param path  Directory of DIMACS file, require a full directory, could be plattform sensitive.
 */
 void runCDCL(const std::string& path) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    vector<vector<int>> formula = readDIMACS(path);
+    if (!formula.empty()) {
+        parse(formula);
+        simplify();
+        setWatchedLiterals();
+        // TODO: CDCL implement
+        while (!isSAT && !isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::conflict) {
 
+        }
+        // Output result
+        if (isSAT) {
+            cout << "The problem is satisfiable!" << "\n";
+            Assignment::printAll();
+            //Assignment::printHistory();
+        } else if (isUNSAT) {
+            cout << "The problem is unsatisfiable!" << "\n";
+            Assignment::printAll();
+            //Assignment::printHistory();
+        } else {
+            cout << "Time run out!" << "\n";
+            Assignment::printAll();
+        }
+    } else if (formula.empty()) {
+        cerr << "File at " << path << " is empty or error opening!" << endl;
+    }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    run_time = end_time - start_time;
+    std::cout << "Runtime: " << run_time.count() << "ms" << endl;
+    reset();
+}
+
+/**
+ * Set up 2 watched literals for clauses
+ */
+void setWatchedLiterals() {
+    for (auto* c : Clause::list) {
+        // Choose 2 watched literals for each clauses
+        int clause_size = c->pos_literals_list.size() + c->neg_literals_list.size();
+        if (!c->SAT && clause_size >= 2) { // Only SAT by simplify(),
+            c->watched_literal_1 = *(c->unset_literals.begin()); // randomly access due to unordered
+            std::unordered_set<Literal*> s = c->unset_literals;
+            s.erase(c->watched_literal_1);
+            c->watched_literal_2 = *(s.begin());
+        }
+        // Add clause address to pos/neg_watched_occ of watched literals
+        if (c->pos_literals_list.count(c->watched_literal_1) == 1) {
+            c->watched_literal_1->pos_watched_occ.insert(c);
+        } else {
+            c->watched_literal_1->neg_watched_occ.insert(c);
+        }
+        if (c->pos_literals_list.count(c->watched_literal_2) == 1) {
+            c->watched_literal_2->pos_watched_occ.insert(c);
+        } else {
+            c->watched_literal_2->neg_watched_occ.insert(c);
+        }
+    }
 }
 
 /**
@@ -270,7 +329,7 @@ void unitPropagation() {
         Literal::unit_queue.pop();
         Clause* unit_clause = next_literal->reason;
         // check if the literal is positive or negative in the unit clause to assign fitting value
-        if (find(unit_clause->pos_literals_list.begin(), unit_clause->pos_literals_list.end(), next_literal) != unit_clause->pos_literals_list.end()) {
+        if (unit_clause->pos_literals_list.count(next_literal) == 1) {
             next_literal->assignValue(true, isForced);
         } else {
             next_literal->assignValue(false, isForced);

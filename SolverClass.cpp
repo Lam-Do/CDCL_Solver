@@ -129,6 +129,7 @@ void Literal::unassignValue() {
         }
     }
 }
+
 /**
  * Counting all positive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called.
  * Occurrences in SAT clauses will not be counted.
@@ -196,9 +197,9 @@ void Literal::updateStaticData() {
  */
 void Clause::appendLiteral(Literal* literal_ad, bool isPos) {
     if (isPos) {
-        this->pos_literals_list.push_back(literal_ad);
+        this->pos_literals_list.insert(literal_ad);
     } else {
-        this->neg_literals_list.push_back(literal_ad);
+        this->neg_literals_list.insert(literal_ad);
     }
     this->unset_literals.insert(literal_ad);
 }
