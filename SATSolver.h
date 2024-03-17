@@ -23,8 +23,8 @@ public:
     std::unordered_set<Clause*> neg_occ;
     std::unordered_set<Clause*> pos_watched_occ;
     std::unordered_set<Clause*> neg_watched_occ;
-    int branching_level_dp;
-    Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagation to trace back necessary value for assigning.
+    int branching_level_dp = 0;
+    Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagationDPLL to trace back necessary value for assigning.
 
     static int count;
     static std::unordered_map<int, Literal*> id2Ad_dict; // dictionary id to address
@@ -67,6 +67,7 @@ public:
     void updateStaticData();
     void reportConflict();
 
+    static void unitPropagationDPLL();
     static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
     static bool checkSAT();
@@ -85,14 +86,18 @@ struct Assignment {
     static std::vector<std::stack<Assignment*>> assignment_history; // Not used
     static bool enablePrintAll;
     static std::string branching_heuristic;
+    static int bd;
+
     const static bool isForced = true;
 
     void updateStaticData();
     static void backtrackingDPLL();
     static void backtrackingCDCL();
+    static void branchingDPLL();
     static void printAll();
     static void printHistory();
 };
+
 
 struct Formula {
     static bool isSAT;
@@ -101,4 +106,11 @@ struct Formula {
     static int clause_count;
 };
 
+struct Printer {
+    static bool print_process;
+};
+
+struct Heuristic {
+    static std::tuple<Literal*, bool> MOM();
+};
 #endif //CDCL_SOLVER_SATSOLVER_H

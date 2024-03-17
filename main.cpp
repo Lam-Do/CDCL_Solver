@@ -24,6 +24,8 @@ stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
 bool Assignment::enablePrintAll = true;
 string Assignment::branching_heuristic;
+int Assignment::bd;
+
 // Formula
 bool Formula::isSAT = false;
 bool Formula::isUNSAT = false;
@@ -33,12 +35,9 @@ int Formula::clause_count = 0;
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
 void parse(vector<vector<int>> formula);
-void unitPropagation();
-void branchingDPLL();
 void simplify();
 void removeSATClauses();
 void pureLiteralsEliminate();
-tuple<Literal *, bool> heuristicMOM();
 void removeInitialUnitClauses();
 void reset();
 void printAllData();
@@ -54,7 +53,7 @@ std::chrono::duration<double, std::milli> run_time = std::chrono::high_resolutio
 // variables controlling output to terminal
 bool print_parsing_result = false;
 bool print_formula = false;
-bool print_process = false;
+bool Printer::print_process = false;
 bool printCDCLProcess = false;
 
 
@@ -108,12 +107,12 @@ void runDPLL(const std::string& path) {
         parse(formula);
         simplify();
         while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::conflict) {
-            unitPropagation();
+            Clause::unitPropagationDPLL();
             if (Literal::unit_queue.empty() && !Clause::conflict) {
                 pureLiteralsEliminate();
             }
             if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::conflict) {
-                branchingDPLL();
+                Assignment::branchingDPLL();
             }
             if (Clause::conflict) {
                 Assignment::backtrackingDPLL();
@@ -189,7 +188,7 @@ void runCDCL(const std::string& path) {
  * Reset all static and global variable, this only necessary in case solver is used multiple times in a single project run.
 */
 void reset() {
-    if (print_process) cout << "Data reseted" << endl;
+    if (Printer::print_process) cout << "Data reseted" << endl;
     Literal::count = 0;
     Literal::id_list.clear();
     Literal::id2Ad_dict.clear();
@@ -218,7 +217,7 @@ vector<vector<int>> readDIMACS(const string& file_name) {
     if (!infile.is_open()) {
         std::cerr << "Error opening file " << file_name << std::endl;
         return {};
-    } else if (infile.is_open() && print_process) {
+    } else if (infile.is_open() && Printer::print_process) {
         cout << "File opened" << endl;
     }
 
@@ -259,7 +258,7 @@ vector<vector<int>> readDIMACS(const string& file_name) {
             }
         }
     }
-    if (print_process) {
+    if (Printer::print_process) {
         cout << "Finished read file " << file_name << endl;
     }
     if (print_formula) {
@@ -279,7 +278,7 @@ vector<vector<int>> readDIMACS(const string& file_name) {
  * @param formula SAT instance
  */
 void parse(vector<vector<int>> formula) {
-    if (print_process) cout << "Start parsing..." << "\n";
+    if (Printer::print_process) cout << "Start parsing..." << "\n";
     for (auto c : formula){
         Clause::setNewClause(c);
     }
@@ -292,30 +291,13 @@ void parse(vector<vector<int>> formula) {
         cout<<"Finish parsing"<<"\n";
     }
 }
-/**
- * find and propagate all literal in unit_queue and assign value to these literal by force
- */
-void unitPropagation() {
-    if (print_process) cout << "Unit propagating..." << "\n";
-    while (!(Literal::unit_queue.empty()) && !Clause::conflict) {
-        Literal* next_literal = Literal::unit_queue.front();
-        Literal::unit_queue.pop();
-        Clause* unit_clause = next_literal->reason;
-        // check if the literal is positive or negative in the unit clause to assign fitting value
-        if (unit_clause->pos_literals_list.count(next_literal) == 1) {
-            next_literal->assignValueDPLL(true, Assignment::isForced);
-        } else {
-            next_literal->assignValueDPLL(false, Assignment::isForced);
-        }
-    }
-}
 
 /**
  * Assign value to all pure literals, which have at the moment of calling function only positive or negative occurrences in UNSAT clauses, with forced assignment.
  * Pure literals can appear during process after remove SAT clauses are SAT from consideration.
  */
 void pureLiteralsEliminate() {
-    if (print_process) cout << "Pure literal eliminating..." << "\n";
+    if (Printer::print_process) cout << "Pure literal eliminating..." << "\n";
     for (const auto& id2ad : Literal::id2Ad_dict) {
         Literal* l = id2ad.second;
         if (l->isFree) {
@@ -326,55 +308,6 @@ void pureLiteralsEliminate() {
             }
         }
     }
-}
-/**
- * Branching in case unit_queue is empty (no unit clause), no conflict, no SAT or UNSAT flag.
- * Function using heuristics to choose a literal then assign value.
- */
-void branchingDPLL() {
-    if (print_process) cout << "Start branchingDPLL " << "\n";
-    tuple<Literal*, bool> t = heuristicMOM(); // use MOM heuristic to choose branchingDPLL literal
-    if (std::get<0>(t) != nullptr) std::get<0>(t)->assignValueDPLL(std::get<1>(t), !Assignment::isForced); // only assign if find a literal
-    if (print_process) cout << "Finished branchingDPLL " << endl;
-}
-
-/**
- * This heuristic choose clause with the smallest number of unassigned literals.
- * Value is chosen base on number of positive or negative occurrences.
- * @return A tuple of (pointer to chosen literal, value)
- */
-std::tuple<Literal*, bool> heuristicMOM() {
-    if (print_process) cout << "Using heuristic MOM" << "\n";
-
-    Assignment::branching_heuristic = "MOM";
-    // check all clauses for the shortest
-    Clause* shortest_clause = nullptr;
-    int shortest_width = INT_MAX;
-    for (auto c : Clause::list) {
-        int clause_actual_width = c->unset_literals.size();
-        if (!c->SAT && clause_actual_width < shortest_width) {
-            shortest_width = clause_actual_width;
-            shortest_clause = c;
-        }
-    }
-
-    Literal* chosen_literal = nullptr;
-    int n = INT_MIN;
-    bool value = true;
-    if (shortest_clause != nullptr) {
-        //choose literal using MOM formula with alpha = 1
-        for (auto l : shortest_clause->unset_literals) {
-            int actual_pos_occ = l->getActualPosOcc(shortest_width); // get number occ of literal in clauses with the exact shortest_width
-            int actual_neg_occ = l->getActualNegOcc(shortest_width);
-            int v = (actual_pos_occ + actual_neg_occ) * 2 ^ 1 + actual_pos_occ * actual_neg_occ;
-            if (v > n) {
-                n = v;
-                chosen_literal = l;
-                value = (actual_pos_occ >= actual_neg_occ) ? true : false;
-            }
-        }
-    }
-    return std::make_tuple(chosen_literal, value);
 }
 
 /**
@@ -400,17 +333,17 @@ unordered_set<T> findIntersection(const unordered_set<T>& s1, const unordered_se
  * Implement some techniques to simplify SAT instance.
  */
 void simplify() {
-    if (print_process) cout << "Start simplifying" << "\n";
+    if (Printer::print_process) cout << "Start simplifying" << "\n";
     removeSATClauses();
     removeInitialUnitClauses();
-    if (print_process) cout << "Finish simplifying" << endl;
+    if (Printer::print_process) cout << "Finish simplifying" << endl;
 }
 
 /**
  * Any unit clause with one literal will have that literal assign value by force
  */
 void removeInitialUnitClauses() {
-    if (print_process) cout << "Finding initial unit clauses ..." << "\n";
+    if (Printer::print_process) cout << "Finding initial unit clauses ..." << "\n";
     for (auto c : Clause::list) {
         int literal_count = c->pos_literals_list.size() + c->neg_literals_list.size();
         if (literal_count == 1) {
@@ -434,14 +367,14 @@ void removeInitialUnitClauses() {
 void removeSATClauses(){
     // check basic SAT condition
     // check a clause contain a literal both pos and neg
-    if (print_process) cout << "Finding SAT clauses..." << "\n";
+    if (Printer::print_process) cout << "Finding SAT clauses..." << "\n";
     for (const auto& id2ad : Literal::id2Ad_dict) {
         Literal* literal = id2ad.second;
         // a literal appear both pos and neg in a clause, that clause is alway SAT, can remove from the process.
         unordered_set<Clause*> intersect = findIntersection(literal->pos_occ, literal->neg_occ);
         if (!intersect.empty()) {
             for (auto c : intersect) {
-                if (print_process) cout << "Clause " << c->id << " is SAT." << "\n";
+                if (Printer::print_process) cout << "Clause " << c->id << " is SAT." << "\n";
                 Clause::list.erase(Clause::list.begin() + c->id - 1);
                 // erase in all connected literals
                 for (auto l : c->pos_literals_list) {

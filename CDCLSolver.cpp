@@ -89,6 +89,7 @@ void Literal::assignValueCDCL(bool value, bool status) {
 void Literal::unassignValueCDCL() {
     // No different from DPLL
     this->unassignValueDPLL();
+    this->branching_level_dp = 0;
 }
 
 void Assignment::backtrackingCDCL() {

@@ -234,3 +234,42 @@ void Clause::setNewClause(std::vector<int>& c) {
         Literal::setLiteral(l, new_clause);
     }
 }
+
+/**
+ * This heuristic choose clause with the smallest number of unassigned literals.
+ * Value is chosen base on number of positive or negative occurrences.
+ * @return A tuple of (pointer to chosen literal, value)
+ */
+std::tuple<Literal*, bool> Heuristic::MOM() {
+    if (Printer::print_process) std::cout << "Using heuristic MOM" << "\n";
+
+    Assignment::branching_heuristic = "MOM";
+    // check all clauses for the shortest
+    Clause* shortest_clause = nullptr;
+    int shortest_width = INT_MAX;
+    for (auto c : Clause::list) {
+        int clause_actual_width = c->unset_literals.size();
+        if (!c->SAT && clause_actual_width < shortest_width) {
+            shortest_width = clause_actual_width;
+            shortest_clause = c;
+        }
+    }
+
+    Literal* chosen_literal = nullptr;
+    int n = INT_MIN;
+    bool value = true;
+    if (shortest_clause != nullptr) {
+        //choose literal using MOM formula with alpha = 1
+        for (auto l : shortest_clause->unset_literals) {
+            int actual_pos_occ = l->getActualPosOcc(shortest_width); // get number occ of literal in clauses with the exact shortest_width
+            int actual_neg_occ = l->getActualNegOcc(shortest_width);
+            int v = (actual_pos_occ + actual_neg_occ) * 2 ^ 1 + actual_pos_occ * actual_neg_occ;
+            if (v > n) {
+                n = v;
+                chosen_literal = l;
+                value = (actual_pos_occ >= actual_neg_occ) ? true : false;
+            }
+        }
+    }
+    return std::make_tuple(chosen_literal, value);
+}

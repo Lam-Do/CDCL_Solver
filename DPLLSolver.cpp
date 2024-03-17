@@ -135,3 +135,32 @@ void Assignment::backtrackingDPLL() {
     }
 
 }
+
+/**
+ * Branching in case unit_queue is empty (no unit clause), no conflict, no SAT or UNSAT flag.
+ * Function using heuristics to choose a literal then assign value.
+ */
+void Assignment::branchingDPLL() {
+    if (Printer::print_process) std::cout << "Start branchingDPLL " << "\n";
+    std::tuple<Literal*, bool> t = Heuristic::MOM(); // use MOM heuristic to choose branchingDPLL literal
+    if (std::get<0>(t) != nullptr) std::get<0>(t)->assignValueDPLL(std::get<1>(t), !Assignment::isForced); // only assign if find a literal
+    if (Printer::print_process) std::cout << "Finished branchingDPLL " << std::endl;
+}
+
+/**
+ * find and propagate all literal in unit_queue and assign value to these literal by force
+ */
+void Clause::unitPropagationDPLL() {
+    if (Printer::print_process) std::cout << "Unit propagating..." << "\n";
+    while (!(Literal::unit_queue.empty()) && !Clause::conflict) {
+        Literal* next_literal = Literal::unit_queue.front();
+        Literal::unit_queue.pop();
+        Clause* unit_clause = next_literal->reason;
+        // check if the literal is positive or negative in the unit clause to assign fitting value
+        if (unit_clause->pos_literals_list.count(next_literal) == 1) {
+            next_literal->assignValueDPLL(true, Assignment::isForced);
+        } else {
+            next_literal->assignValueDPLL(false, Assignment::isForced);
+        }
+    }
+}
