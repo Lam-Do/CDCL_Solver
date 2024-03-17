@@ -23,7 +23,7 @@ public:
     std::unordered_set<Clause*> neg_occ;
     std::unordered_set<Clause*> pos_watched_occ;
     std::unordered_set<Clause*> neg_watched_occ;
-    int branching_level_dp = 0;
+    int branching_level_dp = -1;
     Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagationDPLL to trace back necessary value for assigning.
 
     static int count;
@@ -50,7 +50,7 @@ public:
     const int id;
     std::unordered_set<Literal*> pos_literals_list; // List of positive/negative literals, doesn't change during solving process
     std::unordered_set<Literal*> neg_literals_list;
-    std::unordered_set<Literal*> unset_literals = {};// List of free literals, reduce when one is assigned, and added again when unassign
+    std::unordered_set<Literal*> free_literals = {};// List of free literals, reduce when one is assigned, and added again when unassign
     std::unordered_set<Literal*> sat_by = {}; // List of positive literals with value 1 and negative literal with value 0, making the clause SAT
     Literal* watched_literal_1 = nullptr;
     Literal* watched_literal_2 = nullptr;
@@ -59,6 +59,7 @@ public:
     static int count;
     static std::vector<Clause*> list;
     static bool conflict;
+    static Clause* conflict_clause;
 
     explicit Clause(int id) : id(id) {};
     void appendLiteral(Literal*, bool);
@@ -66,11 +67,13 @@ public:
     void printData();
     void updateStaticData();
     void reportConflict();
+    void conflictAnalyze();
 
     static void unitPropagationDPLL();
+    static void unitPropagationCDCL();
     static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
-    static bool checkSAT();
+    static bool checkAllClausesSAT();
 };
 
 /**
@@ -94,6 +97,7 @@ struct Assignment {
     static void backtrackingDPLL();
     static void backtrackingCDCL();
     static void branchingDPLL();
+    static void branchingCDCL();
     static void printAll();
     static void printHistory();
 };

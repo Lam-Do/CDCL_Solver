@@ -18,13 +18,14 @@ queue<Literal*> Literal::unit_queue= {};
 // Clause:
 int Clause::count = 1; // clauses uses this for id
 bool Clause::conflict = false;
+Clause* Clause::conflict_clause = nullptr;
 vector<Clause*> Clause::list = {};
 // Assignment:
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
+int Assignment::bd;
 bool Assignment::enablePrintAll = true;
 string Assignment::branching_heuristic;
-int Assignment::bd;
 
 // Formula
 bool Formula::isSAT = false;
@@ -117,7 +118,7 @@ void runDPLL(const std::string& path) {
             if (Clause::conflict) {
                 Assignment::backtrackingDPLL();
             }
-            Formula::isSAT = Clause::checkSAT();
+            Formula::isSAT = Clause::checkAllClausesSAT();
             run_time = std::chrono::high_resolution_clock::now() - start_time; // update runtime
         }
 
@@ -189,20 +190,26 @@ void runCDCL(const std::string& path) {
 */
 void reset() {
     if (Printer::print_process) cout << "Data reseted" << endl;
+
     Literal::count = 0;
     Literal::id_list.clear();
     Literal::id2Ad_dict.clear();
     while (!Literal::unit_queue.empty()){Literal::unit_queue.pop();}
+
     Clause::count = 0;
     Clause::list.clear();
     Clause::conflict = false;
+    Clause::conflict_clause = nullptr;
+
     while (!Assignment::stack.empty()) {Assignment::stack.pop();}
     Assignment::assignment_history.clear();
+    Assignment::bd = 0;
 
     Formula::isSAT = false;
     Formula::isUNSAT = false;
     Formula::clause_count = 0;
     Formula::var_count = 0;
+
     run_time = std::chrono::high_resolution_clock::duration::zero();
 }
 
@@ -347,7 +354,7 @@ void removeInitialUnitClauses() {
     for (auto c : Clause::list) {
         int literal_count = c->pos_literals_list.size() + c->neg_literals_list.size();
         if (literal_count == 1) {
-            Literal* l = *(c->unset_literals.begin());
+            Literal* l = *(c->free_literals.begin());
             if (c->pos_literals_list.empty()) { // Only use this condition to finding suitable value in this case with initial unit clauses
                 l->assignValueDPLL(false, Assignment::isForced);
             }

@@ -18,7 +18,7 @@ void Literal::setFree() {
 int Literal::getActualPosOcc(int w) {
     int occ = 0;
     for (auto c : this->pos_occ) {
-        if (!c->SAT && c->unset_literals.size() <= w) {
+        if (!c->SAT && c->free_literals.size() <= w) {
             occ++;
         }
     }
@@ -33,7 +33,7 @@ int Literal::getActualPosOcc(int w) {
 int Literal::getActualNegOcc(int w) {
     int occ = 0;
     for (auto c : this->neg_occ) {
-        if (!c->SAT && c->unset_literals.size() <= w) {
+        if (!c->SAT && c->free_literals.size() <= w) {
             occ++;
         }
     }
@@ -72,14 +72,14 @@ void Clause::appendLiteral(Literal* literal_ad, bool isPos) {
     } else {
         this->neg_literals_list.insert(literal_ad);
     }
-    this->unset_literals.insert(literal_ad);
+    this->free_literals.insert(literal_ad);
 }
 
 /**
  * Check if all clauses are SAT
  * @return true if all clauses are SAT, false otherwise.
  */
-bool Clause::checkSAT() {
+bool Clause::checkAllClausesSAT() {
     for (const auto& c : Clause::list) {
         if (!c->SAT) {return false;}
     }
@@ -90,7 +90,7 @@ bool Clause::checkSAT() {
  * Get number of free literals in the clause.
  * @return Number of free literals
  */
-int Clause::getUnsetLiteralsCount() const {return this->unset_literals.size();}
+int Clause::getUnsetLiteralsCount() const {return this->free_literals.size();}
 
 /**
  * Print all data saved by this instances of class Clause.
@@ -106,7 +106,7 @@ void Clause::printData() {
         std::cout << " -" << l->id << ",";
     }
     std::cout << " - current unassigned literals:";
-    for (auto l : this->unset_literals) {
+    for (auto l : this->free_literals) {
         std::cout << " " << l->id << ",";
     }
     if (this->SAT) {
@@ -248,7 +248,7 @@ std::tuple<Literal*, bool> Heuristic::MOM() {
     Clause* shortest_clause = nullptr;
     int shortest_width = INT_MAX;
     for (auto c : Clause::list) {
-        int clause_actual_width = c->unset_literals.size();
+        int clause_actual_width = c->free_literals.size();
         if (!c->SAT && clause_actual_width < shortest_width) {
             shortest_width = clause_actual_width;
             shortest_clause = c;
@@ -260,7 +260,7 @@ std::tuple<Literal*, bool> Heuristic::MOM() {
     bool value = true;
     if (shortest_clause != nullptr) {
         //choose literal using MOM formula with alpha = 1
-        for (auto l : shortest_clause->unset_literals) {
+        for (auto l : shortest_clause->free_literals) {
             int actual_pos_occ = l->getActualPosOcc(shortest_width); // get number occ of literal in clauses with the exact shortest_width
             int actual_neg_occ = l->getActualNegOcc(shortest_width);
             int v = (actual_pos_occ + actual_neg_occ) * 2 ^ 1 + actual_pos_occ * actual_neg_occ;

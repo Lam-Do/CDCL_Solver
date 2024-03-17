@@ -25,14 +25,14 @@ void Literal::assignValueDPLL(bool value, bool status) {
         // change data in related clauses accordingly to occurrence
         if (value == true) {
             for (auto clause : this->pos_occ) {
-                clause->unset_literals.erase(this);
+                clause->free_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
             }
             for (auto clause : this->neg_occ) {
-                clause->unset_literals.erase(this);
+                clause->free_literals.erase(this);
                 if (clause->getUnsetLiteralsCount() == 1 && !clause->SAT) {
-                    auto free_literal = *(clause->unset_literals.begin()); // Last unset literal of this clause after assign this literal
+                    auto free_literal = *(clause->free_literals.begin()); // Last unset literal of this clause after assign this literal
                     Literal::unit_queue.push(free_literal);
                     free_literal->reason = clause;
                 }
@@ -43,14 +43,14 @@ void Literal::assignValueDPLL(bool value, bool status) {
             }
         } else {
             for (auto clause : this->neg_occ) {
-                clause->unset_literals.erase(this);
+                clause->free_literals.erase(this);
                 clause->SAT = true;
                 clause->sat_by.insert(this);
             }
             for (auto clause : this->pos_occ) {
-                clause->unset_literals.erase(this);
+                clause->free_literals.erase(this);
                 if (clause->getUnsetLiteralsCount() == 1 && !clause->SAT) {
-                    auto free_literal = *(clause->unset_literals.begin());
+                    auto free_literal = *(clause->free_literals.begin());
                     Literal::unit_queue.push(free_literal); //
                     free_literal->reason = clause;
                 }
@@ -76,10 +76,10 @@ void Literal::unassignValueDPLL() {
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
             }
-            clause->unset_literals.insert(this);
+            clause->free_literals.insert(this);
         }
         for (auto clause : this->neg_occ) {
-            clause->unset_literals.insert(this);
+            clause->free_literals.insert(this);
         }
     } else {
         for (auto clause : this->neg_occ) {
@@ -87,10 +87,10 @@ void Literal::unassignValueDPLL() {
             if (clause->sat_by.empty()) {
                 clause->SAT = false;
             }
-            clause->unset_literals.insert(this);
+            clause->free_literals.insert(this);
         }
         for (auto clause : this->pos_occ) {
-            clause->unset_literals.insert(this);
+            clause->free_literals.insert(this);
         }
     }
 }
@@ -142,6 +142,7 @@ void Assignment::backtrackingDPLL() {
  */
 void Assignment::branchingDPLL() {
     if (Printer::print_process) std::cout << "Start branchingDPLL " << "\n";
+    Assignment::branching_heuristic = "MOM";
     std::tuple<Literal*, bool> t = Heuristic::MOM(); // use MOM heuristic to choose branchingDPLL literal
     if (std::get<0>(t) != nullptr) std::get<0>(t)->assignValueDPLL(std::get<1>(t), !Assignment::isForced); // only assign if find a literal
     if (Printer::print_process) std::cout << "Finished branchingDPLL " << std::endl;
