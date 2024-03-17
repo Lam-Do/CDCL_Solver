@@ -273,3 +273,17 @@ std::tuple<Literal*, bool> Heuristic::MOM() {
     }
     return std::make_tuple(chosen_literal, value);
 }
+
+/**
+* Return address of all literals in the clause
+*/
+std::unordered_set<Literal*> Clause::getAllLiterals() {
+    std::unordered_set<Literal*> s;
+    for (Literal* l : this->pos_literals_list) {
+        s.insert(l);
+    }
+    for (Literal* l : this->neg_literals_list) {
+        s.insert(l);
+    }
+    return s;
+}

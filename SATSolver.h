@@ -23,8 +23,9 @@ public:
     std::unordered_set<Clause*> neg_occ;
     std::unordered_set<Clause*> pos_watched_occ;
     std::unordered_set<Clause*> neg_watched_occ;
-    int branching_level_dp = -1;
-    Clause* reason = nullptr; // the clause which has this as the last unset literal, use in unitPropagationDPLL to trace back necessary value for assigning.
+    int branching_level = -1;
+    Clause* reason = nullptr;
+    // the clause which has this as the last unset literal, use in unitPropagationDPLL to trace back necessary value for assigning, in CDCL also use to represent edges
 
     static int count;
     static std::unordered_map<int, Literal*> id2Ad_dict; // dictionary id to address
@@ -67,13 +68,15 @@ public:
     void printData();
     void updateStaticData();
     void reportConflict();
-    void conflictAnalyze();
+    std::unordered_set<Literal*> getAllLiterals();
 
+    static void conflictAnalyze();
     static void unitPropagationDPLL();
     static void unitPropagationCDCL();
     static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
     static bool checkAllClausesSAT();
+    static void learnCut(std::unordered_set<Literal *> cut);
 };
 
 /**

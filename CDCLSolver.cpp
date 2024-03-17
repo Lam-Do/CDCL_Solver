@@ -8,6 +8,10 @@ void Literal::assignValueCDCL(bool value, bool status) {
     if (this->isFree == true) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
         this->isFree = false;
         this->value = value;
+        this->branching_level = Assignment::bd;
+        if (status != Assignment::isForced) {
+            this->reason = nullptr; // default reason is nullptr if not be pushed to unit_queue.
+        }
 
         auto* new_assignment = new Assignment(status, this);
         new_assignment->updateStaticData();
@@ -89,7 +93,7 @@ void Literal::assignValueCDCL(bool value, bool status) {
 void Literal::unassignValueCDCL() {
     // No different from DPLL
     this->unassignValueDPLL();
-    this->branching_level_dp = -1;
+    this->branching_level = -1;
 }
 
 /**
@@ -97,14 +101,44 @@ void Literal::unassignValueCDCL() {
  */
 void Clause::reportConflict() {
     Clause::conflict = true;
+    Clause::conflict_clause = this;
 }
 
 void Clause::conflictAnalyze() {
+    std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals();
 
+    // Find literals with the lowest depth in the cut for later tracking up
+    int max_depth_in_cut = -1;
+    std::unordered_set<Literal*> max_depth_literals_in_cut;
+    for (Literal* l : current_cut) {
+        if (l->branching_level >= max_depth_in_cut) {
+            max_depth_in_cut = l->branching_level;
+            max_depth_literals_in_cut.insert(l);
+        }
+    }
+    // Follow the deepest literals through their edges to parent vertexes then creating new cut
+    for (Literal* C_literal : max_depth_literals_in_cut) {
+        std::unordered_set<Literal*> edges_of_C_literal = C_literal->reason->getAllLiterals();
+        for (Literal* B_literal : edges_of_C_literal) {
+            current_cut.insert(B_literal);
+        }
+        current_cut.erase(C_literal); // remove the literal that is used for tracking up the graph
+    }
+    // With current_cut is updated to new one, check for asserting property
+    int deepest_literal_count = 0;
+    for (Literal* l : current_cut) {
+        if (l->branching_level == Assignment::bd) deepest_literal_count++;
+    }
+    if (deepest_literal_count == 1) {
+        Clause::learnCut(current_cut);
+    }
 }
 
 void Assignment::backtrackingCDCL() {
     // TODO: backtracking
+
+    Clause::conflict = false;
+    Clause::conflict_clause = nullptr;
 }
 
 /**
@@ -112,7 +146,7 @@ void Assignment::backtrackingCDCL() {
  */
 void Clause::setWatchedLiterals() {
     for (auto* c : Clause::list) {
-        // Choose 2 watched literals for each clauses
+        // Choose 2 watched literals for each clause
         int clause_size = c->pos_literals_list.size() + c->neg_literals_list.size();
         if (!c->SAT && clause_size >= 2) { // Only SATable by simplify(),
             c->watched_literal_1 = *(c->free_literals.begin()); // randomly access due to unordered
@@ -145,5 +179,9 @@ void Assignment::branchingCDCL() {
 
 void Clause::unitPropagationCDCL() {
     // TODO: unitPropagating
+
+}
+
+void Clause::learnCut(std::unordered_set<Literal *> cut) {
 
 }
