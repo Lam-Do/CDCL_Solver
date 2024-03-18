@@ -12,18 +12,19 @@ namespace fs = std::filesystem;
 // Declare static variable
 // Literal:
 int Literal::count = 0;
-unordered_map<int, Literal*> Literal::id2Ad_dict = {};
+unordered_map<int, Literal*> Literal::id2Lit = {};
 unordered_set<int> Literal::id_list = {};
 queue<Literal*> Literal::unit_queue= {};
+std::unordered_map<int, Literal*> Literal::bd2BranLit;
 // Clause:
 int Clause::count = 1; // clauses uses this for id
-bool Clause::conflict = false;
+bool Clause::CONFLICT = false;
 Clause* Clause::conflict_clause = nullptr;
 vector<Clause*> Clause::list = {};
 // Assignment:
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
-int Assignment::bd;
+int Assignment::bd = 0;
 bool Assignment::enablePrintAll = true;
 string Assignment::branching_heuristic;
 
@@ -32,6 +33,7 @@ bool Formula::isSAT = false;
 bool Formula::isUNSAT = false;
 int Formula::var_count = 0;
 int Formula::clause_count = 0;
+int Formula::branching_count = 0;
 
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
@@ -107,15 +109,15 @@ void runDPLL(const std::string& path) {
         // parse formula into data structures
         parse(formula);
         simplify();
-        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::conflict) {
+        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
             Clause::unitPropagationDPLL();
-            if (Literal::unit_queue.empty() && !Clause::conflict) {
+            if (Literal::unit_queue.empty() && !Clause::CONFLICT) {
                 pureLiteralsEliminate();
             }
-            if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::conflict) {
+            if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
                 Assignment::branchingDPLL();
             }
-            if (Clause::conflict) {
+            if (Clause::CONFLICT) {
                 Assignment::backtrackingDPLL();
             }
             Formula::isSAT = Clause::checkAllClausesSAT();
@@ -158,7 +160,7 @@ void runCDCL(const std::string& path) {
         simplify();
         Clause::setWatchedLiterals();
         // TODO: CDCL implement
-        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::conflict) {
+        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
 
         }
         // Output result
@@ -193,12 +195,13 @@ void reset() {
 
     Literal::count = 0;
     Literal::id_list.clear();
-    Literal::id2Ad_dict.clear();
+    Literal::id2Lit.clear();
     while (!Literal::unit_queue.empty()){Literal::unit_queue.pop();}
+    Literal::bd2BranLit.clear();
 
     Clause::count = 0;
     Clause::list.clear();
-    Clause::conflict = false;
+    Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
 
     while (!Assignment::stack.empty()) {Assignment::stack.pop();}
@@ -209,6 +212,7 @@ void reset() {
     Formula::isUNSAT = false;
     Formula::clause_count = 0;
     Formula::var_count = 0;
+    Formula::branching_count = 0;
 
     run_time = std::chrono::high_resolution_clock::duration::zero();
 }
@@ -292,7 +296,7 @@ void parse(vector<vector<int>> formula) {
 
     // Print out all parsed data
     if (print_parsing_result) {
-        cout << "Number of literals: " << Literal::id2Ad_dict.size() << "\n";
+        cout << "Number of literals: " << Literal::id2Lit.size() << "\n";
         cout << "Number of clauses: " << Clause::list.size() << "\n";
         printAllData();
         cout<<"Finish parsing"<<"\n";
@@ -305,13 +309,13 @@ void parse(vector<vector<int>> formula) {
  */
 void pureLiteralsEliminate() {
     if (Printer::print_process) cout << "Pure literal eliminating..." << "\n";
-    for (const auto& id2ad : Literal::id2Ad_dict) {
+    for (const auto& id2ad : Literal::id2Lit) {
         Literal* l = id2ad.second;
         if (l->isFree) {
             if (l->getActualPosOcc(INT_MAX) == 0) {
-                l->assignValueDPLL(false, Assignment::isForced);
+                l->assignValueDPLL(false, Assignment::IsForced);
             } else if (l->getActualNegOcc(INT_MAX) == 0) {
-                l->assignValueDPLL(true, Assignment::isForced);
+                l->assignValueDPLL(true, Assignment::IsForced);
             }
         }
     }
@@ -356,14 +360,14 @@ void removeInitialUnitClauses() {
         if (literal_count == 1) {
             Literal* l = *(c->free_literals.begin());
             if (c->pos_literals_list.empty()) { // Only use this condition to finding suitable value in this case with initial unit clauses
-                l->assignValueDPLL(false, Assignment::isForced);
+                l->assignValueDPLL(false, Assignment::IsForced);
             }
             else {
-                l->assignValueDPLL(true, Assignment::isForced);
+                l->assignValueDPLL(true, Assignment::IsForced);
             }
         }
     }
-    if (Clause::conflict) {
+    if (Clause::CONFLICT) {
         Formula::isUNSAT = true;
     } // Conflict by initial unit clauses (all forced assignment) means unsatisfiable
 }
@@ -375,7 +379,7 @@ void removeSATClauses(){
     // check basic SAT condition
     // check a clause contain a literal both pos and neg
     if (Printer::print_process) cout << "Finding SAT clauses..." << "\n";
-    for (const auto& id2ad : Literal::id2Ad_dict) {
+    for (const auto& id2ad : Literal::id2Lit) {
         Literal* literal = id2ad.second;
         // a literal appear both pos and neg in a clause, that clause is alway SAT, can remove from the process.
         unordered_set<Clause*> intersect = findIntersection(literal->pos_occ, literal->neg_occ);
@@ -400,7 +404,7 @@ void removeSATClauses(){
  * Function is not use if variable print_process is not set to "true";
  */
 void printAllData() {
-    for (auto t : Literal::id2Ad_dict) {
+    for (auto t : Literal::id2Lit) {
         t.second->printData();
     }
     for (auto c : Clause::list) {

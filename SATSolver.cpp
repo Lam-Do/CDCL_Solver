@@ -122,7 +122,7 @@ void Clause::printData() {
  */
 void Literal::updateStaticData() {
     Literal::count++;
-    Literal::id2Ad_dict[this->id] = this;
+    Literal::id2Lit[this->id] = this;
     Literal::id_list.insert(id);
 }
 
@@ -211,7 +211,7 @@ void Literal::setLiteral(int l, Clause* new_clause) {
             new_clause->appendLiteral(new_literal, false);
         }
     } else {
-        auto* updating_literal = Literal::id2Ad_dict[abs(l)];
+        auto* updating_literal = Literal::id2Lit[abs(l)];
         if (l >= 0) {
             updating_literal->pos_occ.insert(new_clause);
             new_clause->appendLiteral(updating_literal, true);

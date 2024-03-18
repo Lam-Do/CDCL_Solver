@@ -4,17 +4,11 @@
 #include "SATSolver.h"
 
 
-void Literal::assignValueCDCL(bool value, bool status) {
-    if (this->isFree == true) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
+void Literal::assignValueCDCL(bool value) {
+    if (this->isFree) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
         this->isFree = false;
         this->value = value;
         this->branching_level = Assignment::bd;
-        if (status != Assignment::isForced) {
-            this->reason = nullptr; // default reason is nullptr if not be pushed to unit_queue.
-        }
-
-        auto* new_assignment = new Assignment(status, this);
-        new_assignment->updateStaticData();
 
         if (value == true) {
             // Firstly remove this literal from free_literals list of clauses, then modify related data.
@@ -29,7 +23,7 @@ void Literal::assignValueCDCL(bool value, bool status) {
                 if (this == clause->watched_literal_1 || this == clause->watched_literal_2) {
                     // if the clause is SAT by previously assigned literal, skip this clause
                     if (clause->SAT) continue;
-                    // if there are no free literals and clause UNSAT, report conflict
+                    // if there are no free literals and clause UNSAT, report CONFLICT
                     if (clause->free_literals.empty()) {
                         clause->reportConflict();
                         break;
@@ -94,50 +88,72 @@ void Literal::unassignValueCDCL() {
     // No different from DPLL
     this->unassignValueDPLL();
     this->branching_level = -1;
+    //TODO more unassign
+    //this->reason = nullptr;
+
 }
 
 /**
- * Set conflict flag
+ * Set CONFLICT flag
  */
 void Clause::reportConflict() {
-    Clause::conflict = true;
+    Clause::CONFLICT = true;
     Clause::conflict_clause = this;
 }
 
 void Clause::conflictAnalyze() {
-    std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals();
+    std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals(); // initial cut is the conflicted clause
+    int tracking_bd = Assignment::bd; // bd level for pushing up the cut in the graph, initial value is bd of CONFLICT, which should be actual bd
+    if (Literal::bd2BranLit.empty()) {
+        Formula::isUNSAT = true; // CONFLICT when there are no branching (all forced assignments) means formula unsatisfiable
+    } else {
+        while (!Clause::isBranchingCut(current_cut) && tracking_bd > 0) {
+            // Find vertexes with the tracking bd level in the cut
+            std::unordered_set<Literal*> tracking_vertexes_in_cut;
+            for (Literal* l : current_cut) {
+                if (l->branching_level == tracking_bd) {
+                    tracking_vertexes_in_cut.insert(l);
+                }
+            }
+            if (tracking_vertexes_in_cut.empty()) {
+                // Find the next biggest bd for tracking up the graph
+                int new_tracking_bd = 0;
+                for ( Literal* l : current_cut) {
+                    if (l->branching_level < tracking_bd && l->branching_level > new_tracking_bd) {
+                        new_tracking_bd = l->branching_level;
+                    }
+                }
+                // update tracking bd and go to the next loop
+                tracking_bd = new_tracking_bd;
+            } else {
+                // Follow the vertexes which are being tracked through their edges to parent vertexes then creating new cut
+                for (Literal* C_vertex : tracking_vertexes_in_cut) {
+                    std::unordered_set<Literal*> B_vertexes = C_vertex->reason->getAllLiterals(); // get to B side vertexes through edges represented by "reason" field
+                    B_vertexes.erase(C_vertex); // remove the vertex that is used for tracking up the graph since "reason" clause also include C_vertex
+                    for (Literal* vertex : B_vertexes) {
+                        current_cut.insert(vertex);
+                    }
+                }
+                // With current_cut is updated to new one, check for asserting property
+                int maximal_bd_literal_count = 0;
+                for (Literal* l : current_cut) {
+                    if (l->branching_level == Assignment::bd) maximal_bd_literal_count++;
+                    if (maximal_bd_literal_count > 1) break;
+                }
+                // learn asserting clause
+                if (maximal_bd_literal_count == 1) {
+                    Clause::learnCut(current_cut);
+                }
+            }
 
-    // Find literals with the lowest depth in the cut for later tracking up
-    int max_depth_in_cut = -1;
-    std::unordered_set<Literal*> max_depth_literals_in_cut;
-    for (Literal* l : current_cut) {
-        if (l->branching_level >= max_depth_in_cut) {
-            max_depth_in_cut = l->branching_level;
-            max_depth_literals_in_cut.insert(l);
         }
-    }
-    // Follow the deepest literals through their edges to parent vertexes then creating new cut
-    for (Literal* C_literal : max_depth_literals_in_cut) {
-        std::unordered_set<Literal*> edges_of_C_literal = C_literal->reason->getAllLiterals();
-        for (Literal* B_literal : edges_of_C_literal) {
-            current_cut.insert(B_literal);
-        }
-        current_cut.erase(C_literal); // remove the literal that is used for tracking up the graph
-    }
-    // With current_cut is updated to new one, check for asserting property
-    int deepest_literal_count = 0;
-    for (Literal* l : current_cut) {
-        if (l->branching_level == Assignment::bd) deepest_literal_count++;
-    }
-    if (deepest_literal_count == 1) {
-        Clause::learnCut(current_cut);
     }
 }
 
 void Assignment::backtrackingCDCL() {
     // TODO: backtracking
 
-    Clause::conflict = false;
+    Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
 }
 
@@ -170,9 +186,22 @@ void Clause::setWatchedLiterals() {
 
 void Assignment::branchingCDCL() {
     if (Printer::print_process) std::cout << "Start branchingCDCL " << "\n";
-    Assignment::branching_heuristic = "";
-    Assignment::bd++;
     // TODO: branching here
+    Assignment::bd++;
+    Formula::branching_count++;
+    std::tuple<Literal*, bool> t;
+    if (Assignment::branching_heuristic == "VSIDS") t = Heuristic::VSIDS();
+    if (Assignment::branching_heuristic == "BerkMin") t = Heuristic::BerkMin();
+    if (Assignment::branching_heuristic == "VMTF") t = Heuristic::VMTF();
+    Literal* branching_literal = std::get<0>(t);
+    bool assigning_value = std::get<1>(t);
+    if (std::get<0>(t) != nullptr) branching_literal->assignValueCDCL(assigning_value); // only assign if find a literal
+    // update literal
+    branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
+    Literal::bd2BranLit[Assignment::bd] = branching_literal;
+    // new assignment
+    auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
+    new_assignment->updateStaticData();
 
     if (Printer::print_process) std::cout << "Finished branchingCDCL " << std::endl;
 }
@@ -183,5 +212,37 @@ void Clause::unitPropagationCDCL() {
 }
 
 void Clause::learnCut(std::unordered_set<Literal *> cut) {
+    // TODO: cut to new learn clause
+}
+/**
+ * Test if the cut the highest possible in the graph, meaning all vertexes in branching side (B side) are source vertexes with edges to cutting side (C side)
+ * @param cut A cut represent by a set of literal
+ * @return true if all literals in cut are branching, false otherwise
+ */
+bool Clause::isBranchingCut(const std::unordered_set<Literal *>& cut) {
+    for (Literal* l : cut) {
+        bool l_is_branching_source = Literal::bd2BranLit[l->branching_level] == l; // If l is branching literal, l is in bd2BranLit dict as a branching literal
+        if (!l_is_branching_source) {
+            return false;
+        }
+    }
+    return true;
+}
 
+std::tuple<Literal*, bool> Heuristic::VSIDS() {
+    std::tuple<Literal*, bool> t;
+
+    return t;
+}
+
+std::tuple<Literal*, bool> Heuristic::BerkMin() {
+    std::tuple<Literal*, bool> t;
+
+    return t;
+}
+
+std::tuple<Literal*, bool> Heuristic::VMTF() {
+    std::tuple<Literal*, bool> t;
+
+    return t;
 }

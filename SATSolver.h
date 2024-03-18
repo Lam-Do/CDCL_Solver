@@ -23,20 +23,26 @@ public:
     std::unordered_set<Clause*> neg_occ;
     std::unordered_set<Clause*> pos_watched_occ;
     std::unordered_set<Clause*> neg_watched_occ;
-    int branching_level = -1;
+
+    // the clause which has this as the last unset literal(unit clause), use in unitPropagationDPLL to trace back necessary value for assigning, in CDCL also use to represent edges
     Clause* reason = nullptr;
-    // the clause which has this as the last unset literal, use in unitPropagationDPLL to trace back necessary value for assigning, in CDCL also use to represent edges
+    int branching_level = -1;
+
+    // For CDCL branching heuristics
+    int prioty_level = 0;
+    int learned_count = 0;
 
     static int count;
-    static std::unordered_map<int, Literal*> id2Ad_dict; // dictionary id to address
+    static std::unordered_map<int, Literal*> id2Lit; // dictionary id to address
     static std::unordered_set<int> id_list;
     static std::queue<Literal*> unit_queue;
+    static std::unordered_map<int, Literal*> bd2BranLit; // storing all literals assigned by branching
 
     explicit Literal(int id) : id(id) {};
     void updateStaticData();
     void setFree();
     void assignValueDPLL(bool, bool);
-    void assignValueCDCL(bool, bool);
+    void assignValueCDCL(bool);
     void unassignValueDPLL();
     void unassignValueCDCL();
     int getActualPosOcc(int);
@@ -59,7 +65,7 @@ public:
 
     static int count;
     static std::vector<Clause*> list;
-    static bool conflict;
+    static bool CONFLICT;
     static Clause* conflict_clause;
 
     explicit Clause(int id) : id(id) {};
@@ -75,8 +81,9 @@ public:
     static void unitPropagationCDCL();
     static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
-    static bool checkAllClausesSAT();
     static void learnCut(std::unordered_set<Literal *> cut);
+    static bool isBranchingCut(const std::unordered_set<Literal *>& cut);
+    static bool checkAllClausesSAT();
 };
 
 /**
@@ -94,7 +101,9 @@ struct Assignment {
     static std::string branching_heuristic;
     static int bd;
 
-    const static bool isForced = true;
+    // Code more readable
+    const static bool IsForced = true;
+    const static bool IsBranching = false;
 
     void updateStaticData();
     static void backtrackingDPLL();
@@ -111,6 +120,7 @@ struct Formula {
     static bool isUNSAT;
     static int var_count;
     static int clause_count;
+    static int branching_count;
 };
 
 struct Printer {
@@ -119,5 +129,9 @@ struct Printer {
 
 struct Heuristic {
     static std::tuple<Literal*, bool> MOM();
+    static std::tuple<Literal*, bool> VSIDS();
+    static std::tuple<Literal*, bool> BerkMin();
+    static std::tuple<Literal*, bool> VMTF();
+
 };
 #endif //CDCL_SOLVER_SATSOLVER_H

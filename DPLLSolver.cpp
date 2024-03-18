@@ -8,7 +8,7 @@
  * A New object of assignment class will also be creat here.
  * All associated data will be update accordingly.
  * After data updated, new appear unit UNSAT clauses will have the last literal push to unit_queue.
- * Clauses with no free literal left but still UNSAT will trigger conflict flag.
+ * Clauses with no free literal left but still UNSAT will trigger CONFLICT flag.
  * @param value Value assign to the literal
  * @param status "true" if by force or "false" if branchingDPLL
  */
@@ -37,8 +37,8 @@ void Literal::assignValueDPLL(bool value, bool status) {
                     free_literal->reason = clause;
                 }
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
-                    //report conflict when a clause has no free literal but still UNSAT
-                    Clause::conflict = true;
+                    //report CONFLICT when a clause has no free literal but still UNSAT
+                    Clause::CONFLICT = true;
                 }
             }
         } else {
@@ -55,8 +55,8 @@ void Literal::assignValueDPLL(bool value, bool status) {
                     free_literal->reason = clause;
                 }
                 if (clause->getUnsetLiteralsCount() == 0 && !clause->SAT) {
-                    // check SAT status, if unSAT report conflict
-                    Clause::conflict = true;
+                    // check SAT status, if unSAT report CONFLICT
+                    Clause::CONFLICT = true;
                 }
             }
         }
@@ -96,7 +96,7 @@ void Literal::unassignValueDPLL() {
 }
 
 /**
- * Backtracking in case conflict flag is raised.
+ * Backtracking in case CONFLICT flag is raised.
  * Print all assigned literals.
  * The stack which use to store assigning data will be pop until found an assignment by branchingDPLL, else raise UNSAT flag that signal ending process
  * Literals will be unassigned its value in process.
@@ -128,8 +128,8 @@ void Assignment::backtrackingDPLL() {
             Literal::unit_queue.pop();
         }
         // assign opposite value
-        top_literal->assignValueDPLL(!old_value, Assignment::isForced); // no need to push new assignment here since assignValueDPLL() does it.
-        Clause::conflict = false; // remove conflict flag
+        top_literal->assignValueDPLL(!old_value, Assignment::IsForced); // no need to push new assignment here since assignValueDPLL() does it.
+        Clause::CONFLICT = false; // remove CONFLICT flag
     } else {
         Formula::isUNSAT = true; // flag UNSAT in case stack is empty meaning all assignments is forced and there isn't any another branch
     }
@@ -137,14 +137,14 @@ void Assignment::backtrackingDPLL() {
 }
 
 /**
- * Branching in case unit_queue is empty (no unit clause), no conflict, no SAT or UNSAT flag.
+ * Branching in case unit_queue is empty (no unit clause), no CONFLICT, no SAT or UNSAT flag.
  * Function using heuristics to choose a literal then assign value.
  */
 void Assignment::branchingDPLL() {
     if (Printer::print_process) std::cout << "Start branchingDPLL " << "\n";
     Assignment::branching_heuristic = "MOM";
     std::tuple<Literal*, bool> t = Heuristic::MOM(); // use MOM heuristic to choose branchingDPLL literal
-    if (std::get<0>(t) != nullptr) std::get<0>(t)->assignValueDPLL(std::get<1>(t), !Assignment::isForced); // only assign if find a literal
+    if (std::get<0>(t) != nullptr) std::get<0>(t)->assignValueDPLL(std::get<1>(t), Assignment::IsBranching); // only assign if find a literal
     if (Printer::print_process) std::cout << "Finished branchingDPLL " << std::endl;
 }
 
@@ -153,15 +153,15 @@ void Assignment::branchingDPLL() {
  */
 void Clause::unitPropagationDPLL() {
     if (Printer::print_process) std::cout << "Unit propagating..." << "\n";
-    while (!(Literal::unit_queue.empty()) && !Clause::conflict) {
+    while (!(Literal::unit_queue.empty()) && !Clause::CONFLICT) {
         Literal* next_literal = Literal::unit_queue.front();
         Literal::unit_queue.pop();
         Clause* unit_clause = next_literal->reason;
         // check if the literal is positive or negative in the unit clause to assign fitting value
         if (unit_clause->pos_literals_list.count(next_literal) == 1) {
-            next_literal->assignValueDPLL(true, Assignment::isForced);
+            next_literal->assignValueDPLL(true, Assignment::IsForced);
         } else {
-            next_literal->assignValueDPLL(false, Assignment::isForced);
+            next_literal->assignValueDPLL(false, Assignment::IsForced);
         }
     }
 }
