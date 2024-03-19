@@ -34,7 +34,7 @@ public:
     int branching_level = -1;
 
     // For CDCL branching heuristics
-    int prioty_level = 0;
+    int prioty_level = 1;
     int learned_count = 0;
 
     static int count;
@@ -42,6 +42,8 @@ public:
     static std::unordered_set<int> id_list;
     static std::queue<Literal*> unit_queue;
     static std::unordered_map<int, Literal*> bd2BranLit; // storing all literals assigned by branching
+//    bool comparingPriorities = [](Literal* l1, Literal* l2) { return l1->prioty_level > l2->prioty_level;};
+//    static std::priority_queue<Literal*, std::vector<Literal*>, decltype(comparingPriorities)> pq;
 
     explicit Literal(int id) : id(id) {};
     void updateStaticData();
@@ -52,9 +54,10 @@ public:
     void unassignValueCDCL();
     int getActualPosOcc(int);
     int getActualNegOcc(int);
+    void printData();
 
     static void setLiteral(int l, Clause*);
-    void printData();
+    static void updatePriorities();
 };
 
 class Clause {
@@ -64,7 +67,7 @@ public:
     std::unordered_set<Literal*> neg_literals_list;
     std::unordered_set<Literal*> free_literals = {};// List of free literals, reduce/add after one is assigned/unassigned
     std::unordered_set<Literal*> sat_by = {}; // List of positive literals with value 1 and negative literal with value 0, making the clause SAT
-    Literal* watched_literal_1 = nullptr;
+    Literal* watched_literal_1 = nullptr; // watched literals are set after clause is added
     Literal* watched_literal_2 = nullptr;
     bool SAT = false;
 
@@ -81,12 +84,12 @@ public:
     void updateStaticData();
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
+    void setWatchedLiterals();
 
     static void setNewClause(std::vector<int>& c);
     static void conflictAnalyze();
     static void unitPropagationDPLL();
     static void unitPropagationCDCL();
-    static void setWatchedLiterals();
     static void learnCut(const std::unordered_set<Literal *>& cut);
     static bool isDecisionCut(const std::unordered_set<Literal *>& cut);
     static bool checkAllClausesSAT();
@@ -149,8 +152,8 @@ struct Printer {
 struct Heuristic {
     static std::tuple<Literal*, bool> MOM();
     static std::tuple<Literal*, bool> VSIDS();
-    static std::tuple<Literal*, bool> BerkMin();
-    static std::tuple<Literal*, bool> VMTF();
+//    static std::tuple<Literal*, bool> BerkMin();
+//    static std::tuple<Literal*, bool> VMTF();
 
 };
 #endif //CDCL_SOLVER_SATSOLVER_H

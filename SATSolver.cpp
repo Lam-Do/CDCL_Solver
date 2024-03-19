@@ -234,6 +234,7 @@ void Clause::setNewClause(std::vector<int>& c) {
     for (auto l : c) {
         Literal::setLiteral(l, new_clause);
     }
+    new_clause->setWatchedLiterals();
 }
 
 /**
@@ -288,3 +289,12 @@ std::unordered_set<Literal*> Clause::getAllLiterals() {
     }
     return s;
 }
+// /**
+//  *
+//  * @param l1
+//  * @param l2
+//  * @return
+//  */
+//bool Literal::Comparing::Priorities(Literal * l1, Literal * l2) {
+//    return l1->prioty_level > l2->prioty_level;
+//}

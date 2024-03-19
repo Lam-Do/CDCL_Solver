@@ -16,6 +16,7 @@ unordered_map<int, Literal*> Literal::id2Lit = {};
 unordered_set<int> Literal::id_list = {};
 queue<Literal*> Literal::unit_queue= {};
 std::unordered_map<int, Literal*> Literal::bd2BranLit;
+//std::priority_queue<Literal*, std::vector<Literal*>, decltype(Literal::comparingPriorities)> Literal::pq(Literal::comparingPriorities);
 // Clause:
 int Clause::count = 1;
 bool Clause::CONFLICT = false;
@@ -159,8 +160,7 @@ void runCDCL(const std::string& path) {
     vector<vector<int>> formula = readDIMACS(path);
     if (!formula.empty()) {
         parse(formula);
-        simplify();
-        Clause::setWatchedLiterals();
+        //simplify();
         // TODO: CDCL implement
         while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
 

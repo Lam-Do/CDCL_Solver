@@ -79,7 +79,7 @@ void Literal::assignValueCDCL(bool value) {
                                 Literal* new_watched_literal_b = l;
                                 if (this == clause->watched_literal_1) clause->watched_literal_1 = new_watched_literal_b;
                                 else clause->watched_literal_2 = new_watched_literal_b;
-                                this->pos_watched_occ.erase(clause);
+                                this->pos_watched_occ.erase(clause); //***
                                 if (clause->pos_literals_list.contains(new_watched_literal_b)) new_watched_literal_b->pos_watched_occ.insert(clause);
                                 else new_watched_literal_b->neg_watched_occ.insert(clause);
                             }
@@ -172,9 +172,10 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
         } else {
             Literal::setLiteral(abs(l->id), new_clause);
         }
+        l->learned_count++;
     }
     // TODO: update learned clause fields
-
+    new_clause->setWatchedLiterals();
 }
 
 /**
@@ -227,40 +228,39 @@ void Clause::unitPropagationCDCL() {
  * Set up 2 watched literals for all clauses
  */
 void Clause::setWatchedLiterals() {
-    for (auto* c : Clause::list) {
-        // Choose 2 watched literals for each clause
-        int clause_size = c->pos_literals_list.size() + c->neg_literals_list.size();
-        if (!c->SAT && clause_size >= 2) { // Only SATable by simplify(),
-            c->watched_literal_1 = *(c->free_literals.begin()); // randomly access due to unordered
-            std::unordered_set<Literal*> unwatched_free_literals = c->free_literals;
-            unwatched_free_literals.erase(c->watched_literal_1);
-            c->watched_literal_2 = *(unwatched_free_literals.begin());
-        }
-        // Add clause address to pos/neg_watched_occ of watched literals
-        if (c->pos_literals_list.count(c->watched_literal_1) == 1) {
-            c->watched_literal_1->pos_watched_occ.insert(c);
-        } else {
-            c->watched_literal_1->neg_watched_occ.insert(c);
-        }
-        if (c->pos_literals_list.count(c->watched_literal_2) == 1) {
-            c->watched_literal_2->pos_watched_occ.insert(c);
-        } else {
-            c->watched_literal_2->neg_watched_occ.insert(c);
-        }
+    // Choose 2 random watched literals for the clause
+    int clause_size = this->pos_literals_list.size() + this->neg_literals_list.size();
+    if (!this->SAT && clause_size >= 2) { // Only SATable by prepocessing(),
+        this->watched_literal_1 = *(this->free_literals.begin()); // randomly access due to unordered
+        std::unordered_set<Literal*> unwatched_free_literals = this->free_literals;
+        unwatched_free_literals.erase(this->watched_literal_1);
+        this->watched_literal_2 = *(unwatched_free_literals.begin());
+    }
+    // Add clause address to pos/neg_watched_occ of watched literals
+    if (this->pos_literals_list.contains(this->watched_literal_1)) {
+        this->watched_literal_1->pos_watched_occ.insert(this);
+    } else {
+        this->watched_literal_1->neg_watched_occ.insert(this);
+    }
+    if (this->pos_literals_list.contains(this->watched_literal_2)) {
+        this->watched_literal_2->pos_watched_occ.insert(this);
+    } else {
+        this->watched_literal_2->neg_watched_occ.insert(this);
     }
 }
 
 void Assignment::branchingCDCL() {
     if (Printer::print_process) std::cout << "Start branchingCDCL " << "\n";
+
     Assignment::bd++;
     Formula::branching_count++;
-    std::tuple<Literal*, bool> t;
-    if (Assignment::branching_heuristic == "VSIDS") t = Heuristic::VSIDS();
-    if (Assignment::branching_heuristic == "BerkMin") t = Heuristic::BerkMin();
-    if (Assignment::branching_heuristic == "VMTF") t = Heuristic::VMTF();
+    Assignment::branching_heuristic = "VSIDS";
+    std::tuple<Literal*, bool> t = Heuristic::VSIDS();
+//    if (Assignment::branching_heuristic == "BerkMin") t = Heuristic::BerkMin();
+//    if (Assignment::branching_heuristic == "VMTF") t = Heuristic::VMTF();
     Literal* branching_literal = std::get<0>(t);
     bool assigning_value = std::get<1>(t);
-    if (std::get<0>(t) != nullptr) branching_literal->assignValueCDCL(assigning_value); // only assign if find a literal
+    if (std::get<0>(t) != nullptr) branching_literal->assignValueCDCL(assigning_value);
     // some update for literal
     branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
     Literal::bd2BranLit[Assignment::bd] = branching_literal;
@@ -299,26 +299,55 @@ bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
 }
 
 std::tuple<Literal*, bool> Heuristic::VSIDS() {
-    std::tuple<Literal*, bool> t;
     // TODO
-    return t;
+//    while (!Literal::pq.top()->isFree) {
+//        Literal::pq.pop();
+//    }
+//    t = Literal::pq.top();
+//    Literal::pq.pop();
+
+    int highest_priority = -10000;
+    Literal* chosen_literal = nullptr;
+    bool value;
+    for (auto [id, literal] : Literal::id2Lit) {
+        if (literal->isFree && literal->prioty_level > highest_priority) {
+            highest_priority = literal->prioty_level;
+            chosen_literal = literal;
+        }
+    }
+    if (chosen_literal->getActualPosOcc(INT_MAX) > chosen_literal->getActualNegOcc(INT_MAX)) value = true;
+    else value = false;
+    return std::make_tuple(chosen_literal, value);
 }
 
-std::tuple<Literal*, bool> Heuristic::BerkMin() {
-    std::tuple<Literal*, bool> t;
-    // TODO
-    return t;
-}
-
-std::tuple<Literal*, bool> Heuristic::VMTF() {
-    std::tuple<Literal*, bool> t;
-    // TODO
-    return t;
-}
+//std::tuple<Literal*, bool> Heuristic::BerkMin() {
+//    std::tuple<Literal*, bool> t;
+//    // TODO
+//    return t;
+//}
+//
+//std::tuple<Literal*, bool> Heuristic::VMTF() {
+//    std::tuple<Literal*, bool> t;
+//    // TODO
+//    return t;
+//}
 
 void LearnedClause::updateLearnedStaticData() {
     Clause::count++;
     Clause::list.emplace_back(this);
     LearnedClause::learned_list.emplace_back(this);
     // TODO: further update static data if necessary
+}
+
+void Literal::updatePriorities() {
+    for (auto [id, literal] : Literal::id2Lit) {
+        literal->prioty_level = literal->prioty_level / 2 + literal->learned_count;
+        literal->learned_count = 0;
+    }
+//    while (!Literal::pq.empty()) {
+//        Literal::pq.pop();
+//    }
+//    for (auto [id, literal] : Literal::id2Lit) {
+//        Literal::pq.push(literal);
+//    }
 }
