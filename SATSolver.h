@@ -67,6 +67,7 @@ public:
     static std::vector<Clause*> list;
     static bool CONFLICT;
     static Clause* conflict_clause;
+    static int learned_clause_assertion_level;
 
     explicit Clause(int id) : id(id) {};
     void appendLiteral(Literal*, bool);
@@ -81,9 +82,10 @@ public:
     static void unitPropagationCDCL();
     static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
-    static void learnCut(std::unordered_set<Literal *> cut);
-    static bool isBranchingCut(const std::unordered_set<Literal *>& cut);
+    static void learnCut(const std::unordered_set<Literal *>& cut);
+    static bool isDecisionCut(const std::unordered_set<Literal *>& cut);
     static bool checkAllClausesSAT();
+    static bool isAsserting(const std::unordered_set<Literal *> &cut);
 };
 
 /**

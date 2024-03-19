@@ -102,56 +102,35 @@ void Clause::reportConflict() {
 }
 
 void Clause::conflictAnalyze() {
-    std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals(); // initial cut is the conflicted clause
-    int tracking_bd = Assignment::bd; // bd level for pushing up the cut in the graph, initial value is bd of CONFLICT, which should be actual bd
     if (Literal::bd2BranLit.empty()) {
         Formula::isUNSAT = true; // CONFLICT when there are no branching (all forced assignments) means formula unsatisfiable
     } else {
-        while (!Clause::isBranchingCut(current_cut) && tracking_bd > 0) {
-            // Find vertexes with the tracking bd level in the cut
-            std::unordered_set<Literal*> tracking_vertexes_in_cut;
-            for (Literal* l : current_cut) {
-                if (l->branching_level == tracking_bd) {
-                    tracking_vertexes_in_cut.insert(l);
-                }
-            }
-            if (tracking_vertexes_in_cut.empty()) {
-                // Find the next biggest bd for tracking up the graph
-                int new_tracking_bd = 0;
-                for ( Literal* l : current_cut) {
-                    if (l->branching_level < tracking_bd && l->branching_level > new_tracking_bd) {
-                        new_tracking_bd = l->branching_level;
-                    }
-                }
-                // update tracking bd and go to the next loop
-                tracking_bd = new_tracking_bd;
+        std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals(); // initial cut is the conflicted clause
+        std::stack<Assignment*> stack = Assignment::stack; // making a copy to modify, keeping original assignments history for later unassignValue in backtracking
+        while (!Clause::isAsserting(current_cut)) {
+            // branching literal has no parent vertexes or reason, break out of loop if reach the branching,
+            // clause should be asserting before reach here
+            if (stack.top()->status == Assignment::IsBranching) {
+                current_cut.insert(stack.top()->assigned_literal);
+                break;
             } else {
-                // Follow the vertexes which are being tracked through their edges to parent vertexes then creating new cut
-                for (Literal* C_vertex : tracking_vertexes_in_cut) {
-                    std::unordered_set<Literal*> B_vertexes = C_vertex->reason->getAllLiterals(); // get to B side vertexes through edges represented by "reason" field
-                    B_vertexes.erase(C_vertex); // remove the vertex that is used for tracking up the graph since "reason" clause also include C_vertex
-                    for (Literal* vertex : B_vertexes) {
-                        current_cut.insert(vertex);
-                    }
-                }
-                // With current_cut is updated to new one, check for asserting property
-                int maximal_bd_literal_count = 0;
-                for (Literal* l : current_cut) {
-                    if (l->branching_level == Assignment::bd) maximal_bd_literal_count++;
-                    if (maximal_bd_literal_count > 1) break;
-                }
-                // learn asserting clause
-                if (maximal_bd_literal_count == 1) {
-                    Clause::learnCut(current_cut);
+                // Go up the graph through edges (reason)
+                std::unordered_set<Literal*> parent_vertexes = stack.top()->assigned_literal->reason->getAllLiterals();
+                parent_vertexes.erase(stack.top()->assigned_literal);
+                stack.pop();// remove top assignment for next loop
+                // Resolving current_cut with new parent_vertexes
+                for (Literal* vertex : parent_vertexes) {
+                    current_cut.insert(vertex);
                 }
             }
-
         }
+        // learn asserting clause
+        Clause::learnCut(current_cut);
     }
 }
 
 void Assignment::backtrackingCDCL() {
-    // TODO: backtracking
+    // TODO: backtracking to assertion level of learn clause, continue pop stack after conflict analyze
 
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
@@ -196,7 +175,7 @@ void Assignment::branchingCDCL() {
     Literal* branching_literal = std::get<0>(t);
     bool assigning_value = std::get<1>(t);
     if (std::get<0>(t) != nullptr) branching_literal->assignValueCDCL(assigning_value); // only assign if find a literal
-    // update literal
+    // some update for literal
     branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
     Literal::bd2BranLit[Assignment::bd] = branching_literal;
     // new assignment
@@ -207,21 +186,32 @@ void Assignment::branchingCDCL() {
 }
 
 void Clause::unitPropagationCDCL() {
-    // TODO: unitPropagating
+    // TODO: unitPropagating, add new assignment here instead of in assignValue()
 
 }
 
-void Clause::learnCut(std::unordered_set<Literal *> cut) {
-    // TODO: cut to new learn clause
+void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
+    // TODO: cut to new learn clause, set assertion level for backtracking
+    // the second-largest branching depth of literals in cut
+    Clause::learned_clause_assertion_level = 0;
+    for (Literal* l : cut) {
+        if (l->branching_level < Assignment::bd && l->branching_level > Clause::learned_clause_assertion_level) {
+            Clause::learned_clause_assertion_level = l->branching_level;
+        }
+    }
 }
+
 /**
- * Test if the cut the highest possible in the graph, meaning all vertexes in branching side (B side) are source vertexes with edges to cutting side (C side)
+ * Test if the cut the highest possible in the graph,
+ * meaning all vertexes in branching side (B side) are source vertexes with edges to cutting side (C side).
+ * This is the chosen learning cut for decision scheme, but worst-case for RelSAT and 1UIP scheme
  * @param cut A cut represent by a set of literal
  * @return true if all literals in cut are branching, false otherwise
  */
-bool Clause::isBranchingCut(const std::unordered_set<Literal *>& cut) {
+bool Clause::isDecisionCut(const std::unordered_set<Literal *>& cut) {
     for (Literal* l : cut) {
-        bool l_is_branching_source = Literal::bd2BranLit[l->branching_level] == l; // If l is branching literal, l is in bd2BranLit dict as a branching literal
+        // If l is branching literal, l is in bd2BranLit dict as a branching literal
+        bool l_is_branching_source = Literal::bd2BranLit[l->branching_level] == l;
         if (!l_is_branching_source) {
             return false;
         }
@@ -229,20 +219,29 @@ bool Clause::isBranchingCut(const std::unordered_set<Literal *>& cut) {
     return true;
 }
 
+bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
+    int maximal_bd_literal_count = 0;
+    for (Literal* l : cut) {
+        if (l->branching_level == Assignment::bd) maximal_bd_literal_count++;
+        if (maximal_bd_literal_count > 1) return false;
+    }
+    return true;
+}
+
 std::tuple<Literal*, bool> Heuristic::VSIDS() {
     std::tuple<Literal*, bool> t;
-
+    // TODO
     return t;
 }
 
 std::tuple<Literal*, bool> Heuristic::BerkMin() {
     std::tuple<Literal*, bool> t;
-
+    // TODO
     return t;
 }
 
 std::tuple<Literal*, bool> Heuristic::VMTF() {
     std::tuple<Literal*, bool> t;
-
+    // TODO
     return t;
 }

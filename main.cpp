@@ -21,6 +21,7 @@ int Clause::count = 1; // clauses uses this for id
 bool Clause::CONFLICT = false;
 Clause* Clause::conflict_clause = nullptr;
 vector<Clause*> Clause::list = {};
+int Clause::learned_clause_assertion_level = 0;
 // Assignment:
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
@@ -203,6 +204,7 @@ void reset() {
     Clause::list.clear();
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
+    Clause::learned_clause_assertion_level = 0;
 
     while (!Assignment::stack.empty()) {Assignment::stack.pop();}
     Assignment::assignment_history.clear();
