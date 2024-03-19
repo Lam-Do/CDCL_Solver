@@ -207,8 +207,20 @@ void Assignment::backtrackingCDCL() {
 }
 
 void Clause::unitPropagationCDCL() {
-    // TODO: unitPropagating, add new assignment here instead of in assignValue()
-
+    if (Printer::print_process) std::cout << "Unit propagating..." << "\n";
+    while (!(Literal::unit_queue.empty()) && !Clause::CONFLICT) {
+        Literal* next_literal = Literal::unit_queue.front();
+        Literal::unit_queue.pop();
+        Clause* unit_clause = next_literal->reason;
+        // check literal is positive or negative in the unit clause to assign fitting value
+        if (unit_clause->pos_literals_list.count(next_literal) == 1) {
+            next_literal->assignValueCDCL(true);
+        } else {
+            next_literal->assignValueCDCL(false);
+        }
+        auto* new_assignment = new Assignment(Assignment::IsForced, next_literal);
+        new_assignment->updateStaticData();
+    }
 }
 
 /**

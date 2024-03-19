@@ -190,7 +190,7 @@ void runCDCL(const std::string& path) {
 
 
 /**
- * Reset all static and global variable, this only necessary in case solver is used multiple times in a single project run.
+ * Reset all static and global variable, necessary for solving multiple instances in a single project run.
 */
 void reset() {
     if (Printer::print_process) cout << "Data reseted" << endl;
