@@ -198,19 +198,18 @@ void Assignment::printHistory() {
  */
 void Literal::setLiteral(int l, Clause* new_clause) {
     if (Literal::id_list.count(abs(l)) == 0) { // id is not in the list (count = 0) meaning new Literal
+        auto* new_literal = new Literal(abs(l));
+        new_literal->updateStaticData();
         if (l >= 0) {
-            auto* new_literal = new Literal(abs(l));
-            new_literal->updateStaticData();
             // connecting literals and clauses
             new_literal->pos_occ.insert(new_clause);
             new_clause->appendLiteral(new_literal, true);
         } else {
-            auto* new_literal = new Literal(abs(l));
-            new_literal->updateStaticData();
             // connecting literals and clauses
             new_literal->neg_occ.insert(new_clause);
             new_clause->appendLiteral(new_literal, false);
         }
+        Literal::pq.push(new_literal);
     } else {
         auto* updating_literal = Literal::id2Lit[abs(l)];
         if (l >= 0) {

@@ -43,7 +43,11 @@ public:
     static std::queue<Literal*> unit_queue;
     static std::unordered_map<int, Literal*> bd2BranLit; // storing all literals assigned by branching
 //    bool comparingPriorities = [](Literal* l1, Literal* l2) { return l1->prioty_level > l2->prioty_level;};
-//    static std::priority_queue<Literal*, std::vector<Literal*>, decltype(comparingPriorities)> pq;
+    class Compare {
+    public:
+        bool operator()(Literal* l1, Literal* l2) {return l1->prioty_level > l2->prioty_level;}
+    };
+    static std::priority_queue<Literal*, std::vector<Literal*>, Compare> pq;
 
     explicit Literal(int id) : id(id) {};
     void updateStaticData();

@@ -16,7 +16,7 @@ unordered_map<int, Literal*> Literal::id2Lit = {};
 unordered_set<int> Literal::id_list = {};
 queue<Literal*> Literal::unit_queue= {};
 std::unordered_map<int, Literal*> Literal::bd2BranLit;
-//std::priority_queue<Literal*, std::vector<Literal*>, decltype(Literal::comparingPriorities)> Literal::pq(Literal::comparingPriorities);
+std::priority_queue<Literal*, std::vector<Literal*>, Literal::Compare> Literal::pq;
 // Clause:
 int Clause::count = 1;
 bool Clause::CONFLICT = false;
@@ -196,12 +196,18 @@ void reset() {
     if (Printer::print_process) cout << "Data reseted" << endl;
 
     Literal::count = 0;
+//    for (auto [id, l] : Literal::id2Lit) {
+//        delete l;
+//    }
     Literal::id_list.clear();
     Literal::id2Lit.clear();
     while (!Literal::unit_queue.empty()){Literal::unit_queue.pop();}
     Literal::bd2BranLit.clear();
 
     Clause::count = 0;
+//    for (auto c : Clause::list) {
+//        delete c;
+//    }
     Clause::list.clear();
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;

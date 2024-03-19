@@ -187,8 +187,10 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
 void Assignment::backtrackingCDCL() {
     // pop all forced assignment, stop at last branchingDPLL assignment or stack empty
     while (!Assignment::stack.empty() && Assignment::stack.top()->assigned_literal->branching_level > Clause::learned_clause_assertion_level) {
-        Assignment::stack.top()->assigned_literal->unassignValueCDCL();
+        Assignment* assignment = Assignment::stack.top();
+        assignment->assigned_literal->unassignValueCDCL();
         Assignment::stack.pop();
+//        delete assignment;
     }
     if (Assignment::stack.empty()) { // redundant case since stack is empty only when there are no branching, this should be checked by conflictAnalyze()
         Formula::isUNSAT = true;
@@ -299,24 +301,26 @@ bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
 }
 
 std::tuple<Literal*, bool> Heuristic::VSIDS() {
-    // TODO
-//    while (!Literal::pq.top()->isFree) {
-//        Literal::pq.pop();
-//    }
-//    t = Literal::pq.top();
-//    Literal::pq.pop();
-
-    int highest_priority = -10000;
     Literal* chosen_literal = nullptr;
     bool value;
-    for (auto [id, literal] : Literal::id2Lit) {
-        if (literal->isFree && literal->prioty_level > highest_priority) {
-            highest_priority = literal->prioty_level;
-            chosen_literal = literal;
-        }
+    std::priority_queue<Literal*, std::vector<Literal*>, Literal::Compare> queue = Literal::pq;
+    // Find the most prioritized free literal
+    while (!queue.top()->isFree) {
+        queue.pop();
     }
+    chosen_literal = queue.top();
+
+//    int highest_priority = -10000;
+//    for (auto [id, literal] : Literal::id2Lit) {
+//        if (literal->isFree && literal->prioty_level > highest_priority) {
+//            highest_priority = literal->prioty_level;
+//            chosen_literal = literal;
+//        }
+//    }
+    // Choose value with more actual occur
     if (chosen_literal->getActualPosOcc(INT_MAX) > chosen_literal->getActualNegOcc(INT_MAX)) value = true;
     else value = false;
+
     return std::make_tuple(chosen_literal, value);
 }
 
@@ -340,14 +344,15 @@ void LearnedClause::updateLearnedStaticData() {
 }
 
 void Literal::updatePriorities() {
+    // Empty priority queue
+    while (!Literal::pq.empty()) {
+        Literal::pq.pop();
+    }
     for (auto [id, literal] : Literal::id2Lit) {
+        // Update
         literal->prioty_level = literal->prioty_level / 2 + literal->learned_count;
         literal->learned_count = 0;
+        // Push back to queue
+        Literal::pq.push(literal);
     }
-//    while (!Literal::pq.empty()) {
-//        Literal::pq.pop();
-//    }
-//    for (auto [id, literal] : Literal::id2Lit) {
-//        Literal::pq.push(literal);
-//    }
 }
