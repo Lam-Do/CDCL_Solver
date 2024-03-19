@@ -17,10 +17,11 @@ unordered_set<int> Literal::id_list = {};
 queue<Literal*> Literal::unit_queue= {};
 std::unordered_map<int, Literal*> Literal::bd2BranLit;
 // Clause:
-int Clause::count = 1; // clauses uses this for id
+int Clause::count = 1;
 bool Clause::CONFLICT = false;
 Clause* Clause::conflict_clause = nullptr;
 vector<Clause*> Clause::list = {};
+std::vector<LearnedClause*> LearnedClause::learned_list = {};
 int Clause::learned_clause_assertion_level = 0;
 // Assignment:
 stack<Assignment*> Assignment::stack = {};

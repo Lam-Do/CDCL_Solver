@@ -191,7 +191,8 @@ void Assignment::printHistory() {
     }
 }
 /**
- * creat new Literal or update data structure when creating a new clause
+ * creat new variable or update data structure when creating a new clause with old variable
+ * Both data structure Clause and Literal, the connection between both, are updated here
  * @param l id of the literal
  * @param new_clause point to the clause contain the literal
  */

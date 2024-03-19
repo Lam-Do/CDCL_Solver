@@ -19,12 +19,17 @@ public:
     const int id;
     bool isFree = true; // decide if the literal is free to assign new value
     bool value = false; // value of true or false, the literal always has a value during processing but consider has no value if it's free.
-    std::unordered_set<Clause*> pos_occ; // All positive/negative occurrences. This is not changed during solving process.
+    std::unordered_set<Clause*> pos_occ; // All positive/negative occurrences. Unchanged during solving process.
     std::unordered_set<Clause*> neg_occ;
     std::unordered_set<Clause*> pos_watched_occ;
     std::unordered_set<Clause*> neg_watched_occ;
 
-    // the clause which has this as the last unset literal(unit clause), use in unitPropagationDPLL to trace back necessary value for assigning, in CDCL also use to represent edges
+    /** "reason":
+     * the clause which has the variable as the last unset literal(unit clause)
+     * unitPropagation use to trace back necessary value for assigning
+     * CDCL use to represent edges
+     * Always assigned right after the literal is pushed to unit_queue
+     */
     Clause* reason = nullptr;
     int branching_level = -1;
 
@@ -55,15 +60,15 @@ public:
 class Clause {
 public:
     const int id;
-    std::unordered_set<Literal*> pos_literals_list; // List of positive/negative literals, doesn't change during solving process
+    std::unordered_set<Literal*> pos_literals_list; // List of positive/negative literals, unchanged during solving process
     std::unordered_set<Literal*> neg_literals_list;
-    std::unordered_set<Literal*> free_literals = {};// List of free literals, reduce when one is assigned, and added again when unassign
+    std::unordered_set<Literal*> free_literals = {};// List of free literals, reduce/add after one is assigned/unassigned
     std::unordered_set<Literal*> sat_by = {}; // List of positive literals with value 1 and negative literal with value 0, making the clause SAT
     Literal* watched_literal_1 = nullptr;
     Literal* watched_literal_2 = nullptr;
     bool SAT = false;
 
-    static int count;
+    static int count; // clauses uses this for id, initial with 1 instead of 0 because a clause is created with id = count before count got increment by 1.
     static std::vector<Clause*> list;
     static bool CONFLICT;
     static Clause* conflict_clause;
@@ -77,15 +82,26 @@ public:
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
 
+    static void setNewClause(std::vector<int>& c);
     static void conflictAnalyze();
     static void unitPropagationDPLL();
     static void unitPropagationCDCL();
-    static void setNewClause(std::vector<int>& c);
     static void setWatchedLiterals();
     static void learnCut(const std::unordered_set<Literal *>& cut);
     static bool isDecisionCut(const std::unordered_set<Literal *>& cut);
     static bool checkAllClausesSAT();
     static bool isAsserting(const std::unordered_set<Literal *> &cut);
+};
+
+class LearnedClause: public Clause {
+public:
+    // TODO: more field for deleting strategies
+
+    static std::vector<LearnedClause*> learned_list;
+
+    explicit LearnedClause(int i) : Clause(i) {};
+    void updateLearnedStaticData();
+
 };
 
 /**
@@ -114,6 +130,7 @@ struct Assignment {
     static void branchingCDCL();
     static void printAll();
     static void printHistory();
+
 };
 
 
