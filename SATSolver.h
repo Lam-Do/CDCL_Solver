@@ -59,6 +59,7 @@ public:
     int getActualPosOcc(int);
     int getActualNegOcc(int);
     void printData();
+    void deleteLiteral();
 
     static void setLiteral(int l, Clause*);
     static void updatePriorities();
@@ -89,6 +90,7 @@ public:
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
     void setWatchedLiterals();
+    void deleteClause();
 
     static void setNewClause(std::vector<int>& c);
     static void conflictAnalyze();
@@ -135,8 +137,6 @@ struct Assignment {
     static void backtrackingCDCL();
     static void branchingDPLL();
     static void branchingCDCL();
-    static void printAll();
-    static void printHistory();
 
 };
 
@@ -147,10 +147,21 @@ struct Formula {
     static int var_count;
     static int clause_count;
     static int branching_count;
+
+    static void restart();
 };
 
 struct Printer {
     static bool print_process;
+    static bool print_parsing_result;
+    static bool print_formula;
+    static bool print_CDCL_process;
+    static bool print_assignment;
+
+    static void printAssignmentStack();
+    static void printAssignmentHistory();
+    static void printAllData();
+    static void printResult();
 };
 
 struct Heuristic {

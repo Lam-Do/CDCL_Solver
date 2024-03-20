@@ -4,26 +4,26 @@
 #include "SATSolver.h"
 
 /**
- * Assign a value to the literal.
+ * Assign a assigning_value to the literal.
  * A New object of assignment class will also be creat here.
  * All associated data will be update accordingly.
  * After data updated, new appear unit UNSAT clauses will have the last literal push to unit_queue.
  * Clauses with no free literal left but still UNSAT will trigger CONFLICT flag.
- * @param value Value assign to the literal
+ * @param assigning_value Value assign to the literal
  * @param status "true" if by force or "false" if branchingDPLL
  */
-void Literal::assignValueDPLL(bool value, bool status) {
-    // assign value and free status
+void Literal::assignValueDPLL(bool assigning_value, bool status) {
+    // assign assigning_value and free status
     // literals could be pushed to unit_queue more than once when they are the last unset literal of more than one clauses.
-    // do nothing, skip assigning value process if the literal is not free
+    // do nothing, skip assigning assigning_value process if the literal is not free
     if (this->isFree == true) {
         this->isFree = false;
-        this->value = value;
+        this->value = assigning_value;
         auto* new_assignment = new Assignment(status, this);
         new_assignment->updateStaticData();
 
         // change data in related clauses accordingly to occurrence
-        if (value == true) {
+        if (assigning_value == true) {
             for (auto clause : this->pos_occ) {
                 clause->free_literals.erase(this);
                 clause->SAT = true;
@@ -107,7 +107,7 @@ void Assignment::backtrackingDPLL() {
         std::cout << "\n";
         std::cout << "----------------" << "\n";
     }
-    Assignment::printAll();
+    Printer::printAssignmentStack();
 
     // pop all forced assignment, stop at last branchingDPLL assignment or stack empty
     while (!Assignment::stack.empty() && Assignment::stack.top()->status) {

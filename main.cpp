@@ -28,8 +28,8 @@ int Clause::learned_clause_assertion_level = 0;
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
 int Assignment::bd = 0;
-bool Assignment::enablePrintAll = true;
-string Assignment::branching_heuristic;
+bool Assignment::enablePrintAll = false;
+string Assignment::branching_heuristic = "VSIDS";
 
 // Formula
 bool Formula::isSAT = false;
@@ -40,13 +40,12 @@ int Formula::branching_count = 0;
 
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
-void parse(vector<vector<int>> formula);
+void parse(const vector<vector<int>>& formula);
 void simplify();
 void removeSATClauses();
 void pureLiteralsEliminate();
 void removeInitialUnitClauses();
 void reset();
-void printAllData();
 //DPLL
 void runDPLL(const std::string&);
 //CDCL
@@ -57,10 +56,11 @@ int MAX_RUN_TIME = 60000; // Determine max runtime for solver, in milisecond.
 std::chrono::duration<double, std::milli> run_time = std::chrono::high_resolution_clock::duration::zero();
 
 // variables controlling output to terminal
-bool print_parsing_result = false;
-bool print_formula = false;
-bool Printer::print_process = false;
-bool printCDCLProcess = false;
+bool Printer::print_parsing_result = true;
+bool Printer::print_formula = true;
+bool Printer::print_process = true;
+bool Printer::print_CDCL_process = true;
+bool Printer::print_assignment = true;
 
 
 /**
@@ -79,18 +79,18 @@ int main() {
     if (select == "y") {
         cout << "Please enter the full directory to the folder: " << "\n";
         getline(cin, path);
-        cout << R"(Do you want to disable printing all assignments history("y" to disable)?: )" << endl;
-        getline(cin, select);
-        if (select == "y") Assignment::enablePrintAll = false;
+//        cout << R"(Do you want to disable printing all assignments history("y" to disable)?: )" << endl;
+//        getline(cin, select);
+//        if (select == "y") Assignment::enablePrintAll = false;
         for (const auto & entry : fs::directory_iterator(path)) {
             std::cout << entry.path().string() << std::endl;
-            runDPLL(entry.path().string());
+            runCDCL(entry.path().string());
             std::cout << "-------------------------" << endl;
         }
     } else if (select == "n") {
         cout << "Please enter the full directory to the file: " << "\n";
         getline(cin, path);
-        runDPLL(path);
+        runCDCL(path);
     } else {
         cerr << "Invalid input!" << endl;
     }
@@ -130,15 +130,15 @@ void runDPLL(const std::string& path) {
         // Output result
         if (Formula::isSAT) {
             cout << "The problem is satisfiable!" << "\n";
-            Assignment::printAll();
-            //Assignment::printHistory();
+            Printer::printAssignmentStack();
+            //Assignment::printAssignmentHistory();
         } else if (Formula::isUNSAT) {
             cout << "The problem is unsatisfiable!" << "\n";
-            Assignment::printAll();
-            //Assignment::printHistory();
+            Printer::printAssignmentStack();
+            //Assignment::printAssignmentHistory();
         } else {
             cout << "Time run out!" << "\n";
-            Assignment::printAll();
+            Printer::printAssignmentStack();
         }
     } else if (formula.empty()) {
         cerr << "File at " << path << " is empty or error opening!" << endl;
@@ -163,20 +163,29 @@ void runCDCL(const std::string& path) {
         //simplify();
         // TODO: CDCL implement
         while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
-
+            Clause::unitPropagationCDCL();
+            if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
+                Assignment::branchingCDCL();
+            }
+            if (Clause::CONFLICT) {
+                Clause::conflictAnalyze();
+                if (!Formula::isUNSAT) {
+                    Assignment::backtrackingCDCL();
+                }
+            }
+            Formula::isSAT = Clause::checkAllClausesSAT();
+            run_time = std::chrono::high_resolution_clock::now() - start_time;
         }
         // Output result
         if (Formula::isSAT) {
             cout << "The problem is satisfiable!" << "\n";
-            Assignment::printAll();
-            //Assignment::printHistory();
+            Printer::printResult();
         } else if (Formula::isUNSAT) {
             cout << "The problem is unsatisfiable!" << "\n";
-            Assignment::printAll();
-            //Assignment::printHistory();
+            Printer::printResult();
         } else {
             cout << "Time run out!" << "\n";
-            Assignment::printAll();
+            Printer::printResult();
         }
     } else if (formula.empty()) {
         cerr << "File at " << path << " is empty or error opening!" << endl;
@@ -186,8 +195,6 @@ void runCDCL(const std::string& path) {
     std::cout << "Runtime: " << run_time.count() << "ms" << endl;
     reset();
 }
-
-
 
 /**
  * Reset all static and global variable, necessary for solving multiple instances in a single project run.
@@ -203,6 +210,7 @@ void reset() {
     Literal::id2Lit.clear();
     while (!Literal::unit_queue.empty()){Literal::unit_queue.pop();}
     Literal::bd2BranLit.clear();
+    while (!Literal::pq.empty()) {Literal::pq.pop();}
 
     Clause::count = 0;
 //    for (auto c : Clause::list) {
@@ -228,16 +236,16 @@ void reset() {
 
 /**
  * Read DIMACS file and parse to vector of vector form
- * @param file_name file's name or path to the file
+ * @param path file's name or path to the file
  * @return SAT instance type vector<vector<int>>
  */
-vector<vector<int>> readDIMACS(const string& file_name) {
-    std::ifstream infile(file_name);
+vector<vector<int>> readDIMACS(const string& path) {
+    std::ifstream infile(path);
 
     if (!infile.is_open()) {
-        std::cerr << "Error opening file " << file_name << std::endl;
+        std::cerr << "Error opening file " << path << std::endl;
         return {};
-    } else if (infile.is_open() && Printer::print_process) {
+    } else if (infile.is_open() && Printer::print_CDCL_process) {
         cout << "File opened" << endl;
     }
 
@@ -279,11 +287,11 @@ vector<vector<int>> readDIMACS(const string& file_name) {
         }
     }
     if (Printer::print_process) {
-        cout << "Finished read file " << file_name << endl;
+        cout << "Finished read file " << path << endl;
     }
-    if (print_formula) {
+    if (Printer::print_formula) {
         cout << "Solving SAT instance: " << "\n";
-        for (auto c : formula) {
+        for (const auto& c : formula) {
             for (auto v : c) {
                 cout << v << " ";
             }
@@ -297,17 +305,17 @@ vector<vector<int>> readDIMACS(const string& file_name) {
  * parse all clauses and literals from the SAT instance to data structures
  * @param formula SAT instance
  */
-void parse(vector<vector<int>> formula) {
+void parse(const vector<vector<int>>& formula) {
     if (Printer::print_process) cout << "Start parsing..." << "\n";
     for (auto c : formula){
         Clause::setNewClause(c);
     }
 
     // Print out all parsed data
-    if (print_parsing_result) {
+    if (Printer::print_parsing_result) {
         cout << "Number of literals: " << Literal::id2Lit.size() << "\n";
         cout << "Number of clauses: " << Clause::list.size() << "\n";
-        printAllData();
+        Printer::printAllData();
         cout<<"Finish parsing"<<"\n";
     }
 }
@@ -408,15 +416,3 @@ void removeSATClauses(){
     }
 }
 
-/**
- * Print all data saving in data structure Literal and Clause.
- * Function is not use if variable print_process is not set to "true";
- */
-void printAllData() {
-    for (auto t : Literal::id2Lit) {
-        t.second->printData();
-    }
-    for (auto c : Clause::list) {
-        c->printData();
-    }
-}

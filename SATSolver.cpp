@@ -3,8 +3,6 @@
 #include <algorithm>
 #include "SATSolver.h"
 
-bool print_process_2 = false;
-
 void Literal::setFree() {
     this->isFree = true;
 }
@@ -96,7 +94,7 @@ int Clause::getUnsetLiteralsCount() const {return this->free_literals.size();}
  * Print all data saved by this instances of class Clause.
  */
 void Clause::printData() {
-    std::cout << "Clause " << this->id << " at " << this <<" -";;
+    std::cout << "Clause " << this->id << " at " << this <<" -";
     std::cout << " pos_literals:";
     for (auto l : this->pos_literals_list) {
         std::cout << " " << l->id << ",";
@@ -141,7 +139,7 @@ void Assignment::updateStaticData() {
 /**
  * Print all assignment in the stack without changing the stack.
  */
-void Assignment::printAll() {
+void Printer::printAssignmentStack() {
     if (Assignment::enablePrintAll) {
         std::stack<Assignment*> s = Assignment::stack;
         std::stack<Assignment*> reversed_stack;
@@ -165,7 +163,7 @@ void Assignment::printAll() {
 /**
  * Print all assignments include removed ones by backtracking in graph form.
  */
-void Assignment::printHistory() {
+void Printer::printAssignmentHistory() {
     std::unordered_set<std::string> printed_list;
     for (auto& s : Assignment::assignment_history) {
         bool print_rest = false;
@@ -209,6 +207,7 @@ void Literal::setLiteral(int l, Clause* new_clause) {
             new_literal->neg_occ.insert(new_clause);
             new_clause->appendLiteral(new_literal, false);
         }
+        // push to priority queue
         Literal::pq.push(new_literal);
     } else {
         auto* updating_literal = Literal::id2Lit[abs(l)];
@@ -288,12 +287,20 @@ std::unordered_set<Literal*> Clause::getAllLiterals() {
     }
     return s;
 }
-// /**
-//  *
-//  * @param l1
-//  * @param l2
-//  * @return
-//  */
-//bool Literal::Comparing::Priorities(Literal * l1, Literal * l2) {
-//    return l1->prioty_level > l2->prioty_level;
-//}
+
+/**
+ * Print all data saving in data structure Literal and Clause.
+ * Function is not use if variable print_process is not set to "true";
+ */
+void Printer::printAllData() {
+    for (auto t : Literal::id2Lit) {
+        t.second->printData();
+    }
+    for (auto c : Clause::list) {
+        c->printData();
+    }
+}
+
+void Printer::printResult() {
+    // TODO: print result in DIMACS format
+}

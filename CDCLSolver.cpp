@@ -4,20 +4,20 @@
 #include "SATSolver.h"
 
 /**
- * Assign a value to the literal base on 2 watched literals structure of clauses.
+ * Assign a assigning_value to the literal base on 2 watched literals structure of clauses.
  * All associated data structures will be updated accordingly.
  * Does not creating a new assignment object.
  * If the last free literal is another watched literal of the clause, the clause is unit clause and gets push to unit_queue
  * No free literal left but clause still is UNSAT, report conflict and break from loop
- * @param value Value assign to the literal
+ * @param assigning_value Value assign to the literal
  */
-void Literal::assignValueCDCL(bool value) {
+void Literal::assignValueCDCL(bool assigning_value) {
     if (this->isFree) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
         this->isFree = false;
-        this->value = value;
+        this->value = assigning_value;
         this->branching_level = Assignment::bd;
 
-        if (value == true) {
+        if (assigning_value == true) {
             // Firstly remove this literal from free_literals list of clauses, then modify related data.
             for (auto clause : this->pos_occ) {
                 clause->free_literals.erase(this);
@@ -41,6 +41,7 @@ void Literal::assignValueCDCL(bool value) {
                         (*clause->free_literals.begin())->reason = clause;
                     } else { // >=2 free literals left
                         for (auto l : clause->free_literals) {
+                            // find new watched literal
                             if (l != clause->watched_literal_1 && l != clause->watched_literal_2) { // l is not watched
                                 Literal* new_watched_literal_b = l;
                                 // set a new watched literal of the clause
@@ -50,6 +51,7 @@ void Literal::assignValueCDCL(bool value) {
                                 this->neg_watched_occ.erase(clause);
                                 if (clause->pos_literals_list.contains(new_watched_literal_b)) new_watched_literal_b->pos_watched_occ.insert(clause);
                                 else new_watched_literal_b->neg_watched_occ.insert(clause);
+                                break;
                             }
                         }
                     }
@@ -82,6 +84,7 @@ void Literal::assignValueCDCL(bool value) {
                                 this->pos_watched_occ.erase(clause); //***
                                 if (clause->pos_literals_list.contains(new_watched_literal_b)) new_watched_literal_b->pos_watched_occ.insert(clause);
                                 else new_watched_literal_b->neg_watched_occ.insert(clause);
+                                break;
                             }
                         }
                     }
@@ -108,7 +111,6 @@ void Literal::unassignValueCDCL() {
     // No different from DPLL
     this->unassignValueDPLL();
     this->branching_level = -1;
-    this->reason = nullptr;
 }
 
 /**
@@ -125,7 +127,7 @@ void Clause::conflictAnalyze() {
         std::stack<Assignment*> stack = Assignment::stack; // making a copy to modify, keeping original assignments history for later unassignValue in backtracking
         while (!Clause::isAsserting(current_cut)) {
             // Redundant case, cut should be asserting before reach here
-            // break out of loop if reach the source branching
+            // break out of loop if reach the source branching assignment
             if (stack.top()->status == Assignment::IsBranching) {
                 current_cut.insert(stack.top()->assigned_literal);
                 break;
@@ -151,7 +153,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
     while (!Literal::unit_queue.empty()) {
         Literal::unit_queue.pop();
     }
-
+    // Creat new learned Clause
     auto* new_clause = new LearnedClause(Clause::count);
     new_clause->updateLearnedStaticData();
 
@@ -192,12 +194,13 @@ void Assignment::backtrackingCDCL() {
         Assignment::stack.pop();
 //        delete assignment;
     }
-    if (Assignment::stack.empty()) { // redundant case since stack is empty only when there are no branching, this should be checked by conflictAnalyze()
+    if (Assignment::stack.empty()) {
+        // redundant case since stack is empty only when there are no branching, this should be checked by conflictAnalyze() beforehand
         Formula::isUNSAT = true;
     } else {
         /**
          * branching literal has highest depth bd which always > asserting level, is popped in while loop
-         * Tracking old value branching literal and empty unit_queue are done by learnCut()
+         * Tracking old value of branching literal and emptying unit_queue are done by learnCut()
          * assigning flipped value is done by unitPropagation
          */
 
@@ -210,19 +213,20 @@ void Assignment::backtrackingCDCL() {
 }
 
 void Clause::unitPropagationCDCL() {
-    if (Printer::print_process) std::cout << "Unit propagating..." << "\n";
+    if (Printer::print_CDCL_process) std::cout << "Unit propagating..." << "\n";
     while (!(Literal::unit_queue.empty()) && !Clause::CONFLICT) {
         Literal* next_literal = Literal::unit_queue.front();
         Literal::unit_queue.pop();
         Clause* unit_clause = next_literal->reason;
         // check literal is positive or negative in the unit clause to assign fitting value
-        if (unit_clause->pos_literals_list.count(next_literal) == 1) {
+        if (unit_clause->pos_literals_list.contains(next_literal)) {
             next_literal->assignValueCDCL(true);
         } else {
             next_literal->assignValueCDCL(false);
         }
         auto* new_assignment = new Assignment(Assignment::IsForced, next_literal);
         new_assignment->updateStaticData();
+        if (Printer::print_assignment) std::cout << "Literal " << next_literal->id << " forcing " << next_literal->value << "\n";
     }
 }
 
@@ -256,20 +260,25 @@ void Assignment::branchingCDCL() {
 
     Assignment::bd++;
     Formula::branching_count++;
-    Assignment::branching_heuristic = "VSIDS";
+    if (Formula::branching_count == 250) {
+        Literal::updatePriorities();
+        Formula::branching_count = 0;
+    }
     std::tuple<Literal*, bool> t = Heuristic::VSIDS();
 //    if (Assignment::branching_heuristic == "BerkMin") t = Heuristic::BerkMin();
 //    if (Assignment::branching_heuristic == "VMTF") t = Heuristic::VMTF();
     Literal* branching_literal = std::get<0>(t);
     bool assigning_value = std::get<1>(t);
-    if (std::get<0>(t) != nullptr) branching_literal->assignValueCDCL(assigning_value);
-    // some update for literal
-    branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
-    Literal::bd2BranLit[Assignment::bd] = branching_literal;
-    // new assignment
-    auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
-    new_assignment->updateStaticData();
-
+    if (std::get<0>(t) != nullptr) {
+        branching_literal->assignValueCDCL(assigning_value);
+        // some update for literal
+        branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
+        Literal::bd2BranLit[Assignment::bd] = branching_literal;
+        // new assignment
+        auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
+        new_assignment->updateStaticData();
+        if (Printer::print_assignment) std::cout << "Literal " << branching_literal->id << " branching" << branching_literal->value << "\n";
+    }
     if (Printer::print_process) std::cout << "Finished branchingCDCL " << std::endl;
 }
 
@@ -301,14 +310,15 @@ bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
 }
 
 std::tuple<Literal*, bool> Heuristic::VSIDS() {
-    Literal* chosen_literal = nullptr;
-    bool value;
-    std::priority_queue<Literal*, std::vector<Literal*>, Literal::Compare> queue = Literal::pq;
+    Literal *chosen_literal = nullptr;
+    bool value = false;
+    std::priority_queue<Literal *, std::vector<Literal *>, Literal::Compare> queue = Literal::pq;
     // Find the most prioritized free literal
-    while (!queue.top()->isFree) {
+    while (!queue.top()->isFree && !queue.empty()) {
         queue.pop();
     }
-    chosen_literal = queue.top();
+    if (!queue.empty()) {
+        chosen_literal = queue.top();
 
 //    int highest_priority = -10000;
 //    for (auto [id, literal] : Literal::id2Lit) {
@@ -318,9 +328,13 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
 //        }
 //    }
     // Choose value with more actual occur
-    if (chosen_literal->getActualPosOcc(INT_MAX) > chosen_literal->getActualNegOcc(INT_MAX)) value = true;
-    else value = false;
-
+        if (chosen_literal->getActualPosOcc(INT_MAX) > chosen_literal->getActualNegOcc(INT_MAX)) value = true;
+        else value = false;
+    } else {
+        if (Printer::print_CDCL_process) {
+            std::cout << "Can't branching, all literals are assigned." << "\n";
+        }
+    }
     return std::make_tuple(chosen_literal, value);
 }
 
@@ -352,7 +366,19 @@ void Literal::updatePriorities() {
         // Update
         literal->prioty_level = literal->prioty_level / 2 + literal->learned_count;
         literal->learned_count = 0;
-        // Push back to queue
+        // Push back to queue for re-sorting base on literals' new priority
         Literal::pq.push(literal);
     }
+}
+
+void Literal::deleteLiteral() {
+    // TODO
+}
+
+void Clause::deleteClause() {
+
+}
+
+void Formula::restart() {
+
 }
