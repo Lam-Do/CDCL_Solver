@@ -152,7 +152,6 @@ void Clause::conflictAnalyze() {
         std::unordered_set<Literal*> current_cut = Clause::conflict_clause->getAllLiterals(); // initial cut is the conflicted clause
         std::stack<Assignment*> stack = Assignment::stack; // making a copy to modify, keeping original assignments history for later unassignValue in backtracking
         while (!Clause::isAsserting(current_cut)) {
-            // Redundant case, cut should be asserting before reach here
             // break out of loop if reach the source branching assignment
             if (stack.top()->status == Assignment::IsBranching) {
                 current_cut.insert(stack.top()->assigned_literal);
@@ -161,8 +160,8 @@ void Clause::conflictAnalyze() {
                 // Go up the graph through edges (reason)
                 std::unordered_set<Literal*> parent_vertexes = stack.top()->assigned_literal->reason->getAllLiterals();
                 parent_vertexes.erase(stack.top()->assigned_literal);
+                current_cut.erase(stack.top()->assigned_literal);
                 stack.pop();// remove top assignment for next loop
-
                 // Resolving current_cut with new parent_vertexes
                 for (Literal* vertex : parent_vertexes) {
                     current_cut.insert(vertex);
@@ -199,6 +198,11 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
             // enqueue new learn clause as unit clause, literal with the highest depth (the old branching literal) is push to unit_queue
             Literal::unit_queue.push(l);
             l->reason = new_clause;
+            if (Printer::print_max_depth_literal) {
+                l->printData();
+                std::cout<< "has depth " << l->branching_level << "\n";
+                std::cout << "Max depth " << Assignment::bd << "\n";
+            }
         }
         l->learned_count++;
     }
@@ -218,10 +222,13 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
 void Assignment::backtrackingCDCL() {
     // pop all forced assignment, stop at last branchingDPLL assignment or stack empty
     while (!Assignment::stack.empty() && Assignment::stack.top()->assigned_literal->branching_level > Clause::learned_clause_assertion_level) {
-        Assignment* assignment = Assignment::stack.top();
-        assignment->assigned_literal->unassignValueCDCL();
+        Assignment* top_assignment = Assignment::stack.top();
+        if (top_assignment->status == Assignment::IsBranching) {
+            Literal::bd2BranLit.erase(top_assignment->assigned_literal->branching_level);
+        }
+        top_assignment->assigned_literal->unassignValueCDCL();
         Assignment::stack.pop();
-//        delete assignment;
+//        delete top_assignment;
     }
     if (Assignment::stack.empty()) {
         // redundant case since stack is empty only when there are no branching, this should be checked by conflictAnalyze() beforehand
@@ -308,8 +315,8 @@ void Assignment::branchingCDCL() {
         auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
         new_assignment->updateStaticData();
         if (Printer::print_assignment) std::cout << "Literal " << branching_literal->id << " branching" << branching_literal->value << "\n";
+        if (Printer::print_process) std::cout << "Finished branchingCDCL " << std::endl;
     }
-    if (Printer::print_process) std::cout << "Finished branchingCDCL " << std::endl;
 }
 
 /**
@@ -336,7 +343,11 @@ bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
         if (l->branching_level == Assignment::bd) maximal_bd_literal_count++;
         if (maximal_bd_literal_count > 1) return false;
     }
-    return true;
+    if (maximal_bd_literal_count == 1) return true;
+    else {
+        std::cerr << "Cut contain no literal with max bd" << std::endl;
+        return true;
+    }
 }
 
 std::tuple<Literal*, bool> Heuristic::VSIDS() {

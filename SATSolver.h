@@ -158,6 +158,7 @@ struct Printer {
     static bool print_CDCL_process;
     static bool print_assignment;
     static bool print_learned_clause;
+    static bool print_max_depth_literal;
 
     static void printAssignmentStack();
     static void printAssignmentHistory();

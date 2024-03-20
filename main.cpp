@@ -62,6 +62,7 @@ bool Printer::print_process = true;
 bool Printer::print_CDCL_process = true;
 bool Printer::print_assignment = true;
 bool Printer::print_learned_clause = true;
+bool Printer::print_max_depth_literal = true;
 
 
 /**
