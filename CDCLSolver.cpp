@@ -172,7 +172,12 @@ void Clause::conflictAnalyze() {
         Clause::learnCut(current_cut);
     }
 }
-
+/**
+ * Cut will be parsed to data structure. New clause is created with watched literals, but without calling setNewClause().
+ * Literal with max depth will be pushed to unit_queue
+ * Update asserting_level for backtracking use.
+ * @param cut
+ */
 void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
     //empty unit clause queue
     while (!Literal::unit_queue.empty()) {
@@ -202,6 +207,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
                 l->printData();
                 std::cout<< "has depth " << l->branching_level << "\n";
                 std::cout << "Max depth " << Assignment::bd << "\n";
+                std::cout << "Assertion level" << Clause::learned_clause_assertion_level << "\n";
             }
         }
         l->learned_count++;
@@ -230,22 +236,17 @@ void Assignment::backtrackingCDCL() {
         Assignment::stack.pop();
 //        delete top_assignment;
     }
-    if (Assignment::stack.empty()) {
-        // redundant case since stack is empty only when there are no branching, this should be checked by conflictAnalyze() beforehand
-        Formula::isUNSAT = true;
-    } else {
-        /**
-         * branching literal has highest depth bd which always > asserting level, is popped in while loop
-         * Tracking old value of branching literal and emptying unit_queue are done by learnCut()
-         * assigning flipped value is done by unitPropagation
-         */
+    /**
+     * branching literal has highest depth bd which always > asserting level, is popped in while loop
+     * Tracking old value of branching literal and emptying unit_queue are done by learnCut()
+     * assigning flipped value is done by unitPropagation
+     */
 
-        // backtracking successfully
-        Assignment::bd = Clause::learned_clause_assertion_level;
-        Clause::CONFLICT = false;
-        Clause::conflict_clause = nullptr;
-        if (Printer::print_process) std::cout << "Backtracking successfully" << "\n";
-    }
+    // backtracking successfully
+    Assignment::bd = Clause::learned_clause_assertion_level;
+    Clause::CONFLICT = false;
+    Clause::conflict_clause = nullptr;
+    if (Printer::print_process) std::cout << "Backtracking successfully" << "\n";
 }
 
 void Clause::unitPropagationCDCL() {
@@ -267,27 +268,32 @@ void Clause::unitPropagationCDCL() {
 }
 
 /**
- * Set up 2 watched literals for all clauses
+ * Set up 2 watched literals for clause. If it's unit clause, push to unit_queue.
+ * Also work as pesuado
  */
 void Clause::setWatchedLiterals() {
-    // Choose 2 random watched literals for the clause
     int clause_size = this->pos_literals_list.size() + this->neg_literals_list.size();
-    if (!this->SAT && clause_size >= 2) { // Only SATable by prepocessing(),
-        this->watched_literal_1 = *(this->free_literals.begin()); // randomly access due to unordered
-        std::unordered_set<Literal*> unwatched_free_literals = this->free_literals;
-        unwatched_free_literals.erase(this->watched_literal_1);
-        this->watched_literal_2 = *(unwatched_free_literals.begin());
-    }
-    // Add clause address to pos/neg_watched_occ of watched literals
-    if (this->pos_literals_list.contains(this->watched_literal_1)) {
-        this->watched_literal_1->pos_watched_occ.insert(this);
+    if (clause_size >= 2) {
+        // Choose 2 random watched literals for the clause
+        if (!this->SAT && clause_size >= 2) { // Only SATable by prepocessing(),
+            this->watched_literal_1 = *(this->free_literals.begin()); // randomly access due to unordered
+            std::unordered_set<Literal*> unwatched_free_literals = this->free_literals;
+            unwatched_free_literals.erase(this->watched_literal_1);
+            this->watched_literal_2 = *(unwatched_free_literals.begin());
+        }
+        // Add clause address to pos/neg_watched_occ of watched literals
+        if (this->pos_literals_list.contains(this->watched_literal_1)) {
+            this->watched_literal_1->pos_watched_occ.insert(this);
+        } else {
+            this->watched_literal_1->neg_watched_occ.insert(this);
+        }
+        if (this->pos_literals_list.contains(this->watched_literal_2)) {
+            this->watched_literal_2->pos_watched_occ.insert(this);
+        } else {
+            this->watched_literal_2->neg_watched_occ.insert(this);
+        }
     } else {
-        this->watched_literal_1->neg_watched_occ.insert(this);
-    }
-    if (this->pos_literals_list.contains(this->watched_literal_2)) {
-        this->watched_literal_2->pos_watched_occ.insert(this);
-    } else {
-        this->watched_literal_2->neg_watched_occ.insert(this);
+        // TODO:
     }
 }
 
@@ -374,6 +380,9 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
     } else {
         if (Printer::print_CDCL_process) {
             std::cout << "Can't branching, all literals are assigned." << "\n";
+            std::cout << "Formula is UNSAT? " << Formula::isUNSAT << "\n";
+            std::cout << "Formula is SAT? " << Formula::isSAT << "\n";
+            std::cout << "Has conflict " << Clause::CONFLICT << "\n";
         }
     }
     return std::make_tuple(chosen_literal, value);
