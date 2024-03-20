@@ -108,8 +108,34 @@ void Clause::reportConflict() {
  * branching_level and reason field got reset.
  */
 void Literal::unassignValueCDCL() {
-    // No different from DPLL
-    this->unassignValueDPLL();
+    this->setFree();
+    // "reason" field is not reassigned to null
+    // since it can remove the learned clause as "reason" from the source branching literal when learning cut
+    //
+//    this->reason = nullptr;
+    if (this->value == true) {
+        for (auto clause : this->pos_occ) {
+            clause->sat_by.erase(this);
+            if (clause->sat_by.empty()) {
+                clause->SAT = false;
+            }
+            clause->free_literals.insert(this);
+        }
+        for (auto clause : this->neg_occ) {
+            clause->free_literals.insert(this);
+        }
+    } else {
+        for (auto clause : this->neg_occ) {
+            clause->sat_by.erase(this);
+            if (clause->sat_by.empty()) {
+                clause->SAT = false;
+            }
+            clause->free_literals.insert(this);
+        }
+        for (auto clause : this->pos_occ) {
+            clause->free_literals.insert(this);
+        }
+    }
     this->branching_level = -1;
 }
 
@@ -160,6 +186,12 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
     // the second-largest branching depth of literals in cut
     Clause::learned_clause_assertion_level = 0;
     for (Literal* l : cut) {
+        // learn flipped value of literal and add to new_clause. Ex: Old value is "true" -> set variable in new_clause as negative literal
+        if (l->value == true) {
+            Literal::setLiteral(-abs(l->id), new_clause);
+        } else {
+            Literal::setLiteral(abs(l->id), new_clause);
+        }
         // update assertion level
         if (l->branching_level < Assignment::bd && l->branching_level > Clause::learned_clause_assertion_level) {
             Clause::learned_clause_assertion_level = l->branching_level;
@@ -168,16 +200,13 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
             Literal::unit_queue.push(l);
             l->reason = new_clause;
         }
-        // learn flipped value of literal and add to new_clause. Ex: Old value is "true" -> set variable in new_clause as negative literal
-        if (l->value == true) {
-            Literal::setLiteral(-abs(l->id), new_clause);
-        } else {
-            Literal::setLiteral(abs(l->id), new_clause);
-        }
         l->learned_count++;
     }
     // TODO: update learned clause fields
     new_clause->setWatchedLiterals();
+    if (Printer::print_learned_clause) {
+        new_clause->printData();
+    }
 }
 
 /**
@@ -205,10 +234,10 @@ void Assignment::backtrackingCDCL() {
          */
 
         // backtracking successfully
-        if (Printer::print_process) std::cout << "Backtracking successfully" << "\n";
         Assignment::bd = Clause::learned_clause_assertion_level;
         Clause::CONFLICT = false;
         Clause::conflict_clause = nullptr;
+        if (Printer::print_process) std::cout << "Backtracking successfully" << "\n";
     }
 }
 
@@ -219,7 +248,7 @@ void Clause::unitPropagationCDCL() {
         Literal::unit_queue.pop();
         Clause* unit_clause = next_literal->reason;
         // check literal is positive or negative in the unit clause to assign fitting value
-        if (unit_clause->pos_literals_list.contains(next_literal)) {
+        if (unit_clause->pos_literals_list.count(next_literal) >= 1) {
             next_literal->assignValueCDCL(true);
         } else {
             next_literal->assignValueCDCL(false);
@@ -260,6 +289,7 @@ void Assignment::branchingCDCL() {
 
     Assignment::bd++;
     Formula::branching_count++;
+    // VSIDS heuristic
     if (Formula::branching_count == 250) {
         Literal::updatePriorities();
         Formula::branching_count = 0;
@@ -272,7 +302,7 @@ void Assignment::branchingCDCL() {
     if (std::get<0>(t) != nullptr) {
         branching_literal->assignValueCDCL(assigning_value);
         // some update for literal
-        branching_literal->reason = nullptr; // default reason should be already nullptr if not be pushed to unit_queue.
+        branching_literal->reason = nullptr; // branching literal has no parent vertexes
         Literal::bd2BranLit[Assignment::bd] = branching_literal;
         // new assignment
         auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
@@ -328,7 +358,7 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
 //        }
 //    }
     // Choose value with more actual occur
-        if (chosen_literal->getActualPosOcc(INT_MAX) > chosen_literal->getActualNegOcc(INT_MAX)) value = true;
+        if (chosen_literal->getActualPosOcc(INT_MAX) >= chosen_literal->getActualNegOcc(INT_MAX)) value = true;
         else value = false;
     } else {
         if (Printer::print_CDCL_process) {

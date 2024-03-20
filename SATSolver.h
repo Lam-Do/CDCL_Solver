@@ -157,11 +157,13 @@ struct Printer {
     static bool print_formula;
     static bool print_CDCL_process;
     static bool print_assignment;
+    static bool print_learned_clause;
 
     static void printAssignmentStack();
     static void printAssignmentHistory();
     static void printAllData();
     static void printResult();
+
 };
 
 struct Heuristic {

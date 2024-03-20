@@ -52,15 +52,16 @@ void runDPLL(const std::string&);
 void runCDCL(const std::string&);
 
 // Global definition
-int MAX_RUN_TIME = 60000; // Determine max runtime for solver, in milisecond.
+int MAX_RUN_TIME = 300000; // Determine max runtime for solver, in milisecond.
 std::chrono::duration<double, std::milli> run_time = std::chrono::high_resolution_clock::duration::zero();
 
 // variables controlling output to terminal
-bool Printer::print_parsing_result = true;
-bool Printer::print_formula = true;
+bool Printer::print_parsing_result = false;
+bool Printer::print_formula = false;
 bool Printer::print_process = true;
 bool Printer::print_CDCL_process = true;
 bool Printer::print_assignment = true;
+bool Printer::print_learned_clause = true;
 
 
 /**
@@ -151,7 +152,7 @@ void runDPLL(const std::string& path) {
 }
 
 /**
- * run DPLL solver on a file with DIMACS format in CNF form
+ * run CDCL solver on a file with DIMACS format in CNF form
  *
  * @param path  Directory of DIMACS file, require a full directory, could be plattform sensitive.
 */
@@ -162,12 +163,12 @@ void runCDCL(const std::string& path) {
         parse(formula);
         //simplify();
         // TODO: CDCL implement
-        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
+        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME) {
             Clause::unitPropagationCDCL();
             if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
                 Assignment::branchingCDCL();
             }
-            if (Clause::CONFLICT) {
+            if (!Formula::isSAT && !Formula::isUNSAT && Clause::CONFLICT) {
                 Clause::conflictAnalyze();
                 if (!Formula::isUNSAT) {
                     Assignment::backtrackingCDCL();
@@ -220,6 +221,7 @@ void reset() {
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
     Clause::learned_clause_assertion_level = 0;
+    LearnedClause::learned_list.clear();
 
     while (!Assignment::stack.empty()) {Assignment::stack.pop();}
     Assignment::assignment_history.clear();
