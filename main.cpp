@@ -28,7 +28,7 @@ int Clause::learned_clause_assertion_level = 0;
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
 int Assignment::bd = 0;
-bool Assignment::enablePrintAll = false;
+bool Assignment::enablePrintAll = true;
 string Assignment::branching_heuristic = "VSIDS";
 
 // Formula
@@ -58,11 +58,11 @@ std::chrono::duration<double, std::milli> run_time = std::chrono::high_resolutio
 // variables controlling output to terminal
 bool Printer::print_parsing_result = false;
 bool Printer::print_formula = false;
-bool Printer::print_process = true;
-bool Printer::print_CDCL_process = true;
-bool Printer::print_assignment = true;
-bool Printer::print_learned_clause = true;
-bool Printer::print_max_depth_literal = true;
+bool Printer::print_process = false;
+bool Printer::print_CDCL_process = false;
+bool Printer::print_assignment = false;
+bool Printer::print_learned_clause = false;
+bool Printer::print_max_depth_literal = false;
 
 
 /**
@@ -99,58 +99,58 @@ int main() {
     return 0;
 }
 
-/**
- * run DPLL solver on a file with DIMACS format in CNF form
- *
- * @param path  Directory of DIMACS file, require a full directory, could be plattform sensitive.
-*/
-void runDPLL(const std::string& path) {
-    auto start_time = std::chrono::high_resolution_clock::now();
-
-    //read DIMACS file, return formula in vector<vector<int>>
-    vector<vector<int>> formula = readDIMACS(path);
-
-    if (!formula.empty()) {
-        // parse formula into data structures
-        parse(formula);
-        simplify();
-        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
-            Clause::unitPropagationDPLL();
-            if (Literal::unit_queue.empty() && !Clause::CONFLICT) {
-                pureLiteralsEliminate();
-            }
-            if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
-                Assignment::branchingDPLL();
-            }
-            if (Clause::CONFLICT) {
-                Assignment::backtrackingDPLL();
-            }
-            Formula::isSAT = Clause::checkAllClausesSAT();
-            run_time = std::chrono::high_resolution_clock::now() - start_time; // update runtime
-        }
-
-        // Output result
-        if (Formula::isSAT) {
-            cout << "The problem is satisfiable!" << "\n";
-            Printer::printAssignmentStack();
-            //Assignment::printAssignmentHistory();
-        } else if (Formula::isUNSAT) {
-            cout << "The problem is unsatisfiable!" << "\n";
-            Printer::printAssignmentStack();
-            //Assignment::printAssignmentHistory();
-        } else {
-            cout << "Time run out!" << "\n";
-            Printer::printAssignmentStack();
-        }
-    } else if (formula.empty()) {
-        cerr << "File at " << path << " is empty or error opening!" << endl;
-    }
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    run_time = end_time - start_time;
-    std::cout << "Runtime: " << run_time.count() << "ms" << endl;
-    reset();
-}
+///**
+// * run DPLL solver on a file with DIMACS format in CNF form
+// *
+// * @param path  Directory of DIMACS file, require a full directory, could be plattform sensitive.
+//*/
+//void runDPLL(const std::string& path) {
+//    auto start_time = std::chrono::high_resolution_clock::now();
+//
+//    //read DIMACS file, return formula in vector<vector<int>>
+//    vector<vector<int>> formula = readDIMACS(path);
+//
+//    if (!formula.empty()) {
+//        // parse formula into data structures
+//        parse(formula);
+//        simplify();
+//        while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME && !Clause::CONFLICT) {
+//            Clause::unitPropagationDPLL();
+//            if (Literal::unit_queue.empty() && !Clause::CONFLICT) {
+//                pureLiteralsEliminate();
+//            }
+//            if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
+//                Assignment::branchingDPLL();
+//            }
+//            if (Clause::CONFLICT) {
+//                Assignment::backtrackingDPLL();
+//            }
+//            Formula::isSAT = Clause::checkAllClausesSAT();
+//            run_time = std::chrono::high_resolution_clock::now() - start_time; // update runtime
+//        }
+//
+//        // Output result
+//        if (Formula::isSAT) {
+//            cout << "The problem is satisfiable!" << "\n";
+//            Printer::printAssignmentStack();
+//            //Assignment::printAssignmentHistory();
+//        } else if (Formula::isUNSAT) {
+//            cout << "The problem is unsatisfiable!" << "\n";
+//            Printer::printAssignmentStack();
+//            //Assignment::printAssignmentHistory();
+//        } else {
+//            cout << "Time run out!" << "\n";
+//            Printer::printAssignmentStack();
+//        }
+//    } else if (formula.empty()) {
+//        cerr << "File at " << path << " is empty or error opening!" << endl;
+//    }
+//
+//    auto end_time = std::chrono::high_resolution_clock::now();
+//    run_time = end_time - start_time;
+//    std::cout << "Runtime: " << run_time.count() << "ms" << endl;
+//    reset();
+//}
 
 /**
  * run CDCL solver on a file with DIMACS format in CNF form
@@ -162,7 +162,7 @@ void runCDCL(const std::string& path) {
     vector<vector<int>> formula = readDIMACS(path);
     if (!formula.empty()) {
         parse(formula);
-        //simplify();
+        Formula::preprocessing();
         // TODO: CDCL implement
         while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME) {
             Clause::unitPropagationCDCL();
@@ -289,7 +289,7 @@ vector<vector<int>> readDIMACS(const string& path) {
             }
         }
     }
-    if (Printer::print_process) {
+    if (Printer::print_CDCL_process) {
         cout << "Finished read file " << path << endl;
     }
     if (Printer::print_formula) {
@@ -309,7 +309,7 @@ vector<vector<int>> readDIMACS(const string& path) {
  * @param formula SAT instance
  */
 void parse(const vector<vector<int>>& formula) {
-    if (Printer::print_process) cout << "Start parsing..." << "\n";
+    if (Printer::print_CDCL_process) cout << "Start parsing..." << "\n";
     for (auto c : formula){
         Clause::setNewClause(c);
     }
@@ -360,37 +360,15 @@ unordered_set<T> findIntersection(const unordered_set<T>& s1, const unordered_se
     return intersection;
 }
 
-/**
- * Implement some techniques to simplify SAT instance.
- */
-void simplify() {
-    if (Printer::print_process) cout << "Start simplifying" << "\n";
-    removeSATClauses();
-    removeInitialUnitClauses();
-    if (Printer::print_process) cout << "Finish simplifying" << endl;
-}
-
-/**
- * Any unit clause with one literal will have that literal assign value by force
- */
-void removeInitialUnitClauses() {
-    if (Printer::print_process) cout << "Finding initial unit clauses ..." << "\n";
-    for (auto c : Clause::list) {
-        int literal_count = c->pos_literals_list.size() + c->neg_literals_list.size();
-        if (literal_count == 1) {
-            Literal* l = *(c->free_literals.begin());
-            if (c->pos_literals_list.empty()) { // Only use this condition to finding suitable value in this case with initial unit clauses
-                l->assignValueDPLL(false, Assignment::IsForced);
-            }
-            else {
-                l->assignValueDPLL(true, Assignment::IsForced);
-            }
-        }
-    }
-    if (Clause::CONFLICT) {
-        Formula::isUNSAT = true;
-    } // Conflict by initial unit clauses (all forced assignment) means unsatisfiable
-}
+///**
+// * Implement some techniques to simplify SAT instance.
+// */
+//void simplify() {
+//    if (Printer::print_process) cout << "Start simplifying" << "\n";
+//    removeSATClauses();
+//    removeInitialUnitClauses();
+//    if (Printer::print_process) cout << "Finish simplifying" << endl;
+//}
 
 /**
  * Clauses having at least literal occur in both positive and negative are SAT by default and will be removed

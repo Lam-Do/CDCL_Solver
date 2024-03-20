@@ -11,12 +11,16 @@
  * No free literal left but clause still is UNSAT, report conflict and break from loop
  * @param assigning_value Value assign to the literal
  */
-void Literal::assignValueCDCL(bool assigning_value) {
-    if (this->isFree) { // avoid redundant when same literal got appended to unit_queue twice and is getting assigned twice
+void Literal::assignValueCDCL(bool assigning_value, bool status) {
+    if (this->isFree) {
         this->isFree = false;
         this->value = assigning_value;
         this->branching_level = Assignment::bd;
+        auto* new_assignment = new Assignment(status, this);
+        new_assignment->updateStaticData();
 
+        // Avoid duplicate literal in unit_queue by push to unordered_set
+        std::unordered_set<Literal*> unit_queue_literals;
         if (assigning_value == true) {
             // Firstly remove this literal from free_literals list of clauses, then modify related data.
             for (auto clause : this->pos_occ) {
@@ -26,18 +30,17 @@ void Literal::assignValueCDCL(bool assigning_value) {
             }
             for (auto clause : this->neg_occ) {
                 clause->free_literals.erase(this);
-                // this literal is in neg_occ and is watched
-                if (this == clause->watched_literal_1 || this == clause->watched_literal_2) {
-                    // if the clause is SAT by previously assigned literal, skip this clause
-                    if (clause->SAT) continue;
-                    // if there are no free literals and clause UNSAT, report CONFLICT
-                    if (clause->free_literals.empty()) {
-                        clause->reportConflict();
-                        break;
-                    }
+                // if the clause is SAT by previously assigned literal, skip this clause
+                if (clause->SAT) continue;
+                // if there are no free literals and clause UNSAT, report CONFLICT
+                if (clause->free_literals.empty()) {
+                    clause->reportConflict();
+                }
+                // this literal is in neg_occ and is watched, meaning the clause is in neg_watched
+                if (this->neg_watched_occ.contains(clause)) {
                     // Find another free literal b if two conditions above are not satisfied
                     if (clause->free_literals.size() == 1) { // only free literal left is the other watched literal
-                        Literal::unit_queue.push((*clause->free_literals.begin()));
+                        unit_queue_literals.insert((*clause->free_literals.begin()));
                         (*clause->free_literals.begin())->reason = clause;
                     } else { // >=2 free literals left
                         for (auto l : clause->free_literals) {
@@ -66,14 +69,13 @@ void Literal::assignValueCDCL(bool assigning_value) {
             }
             for (auto clause : this->pos_occ) { //***
                 clause->free_literals.erase(this);
-                if (this == clause->watched_literal_1 || this == clause->watched_literal_2) {
-                    if (clause->SAT) continue;
-                    if (clause->free_literals.empty()) {
-                        clause->reportConflict();
-                        break;
-                    }
+                if (clause->SAT) continue;
+                if (clause->free_literals.empty()) {
+                    clause->reportConflict();
+                }
+                if (this->pos_watched_occ.contains(clause)) {
                     if (clause->free_literals.size() == 1) {
-                        Literal::unit_queue.push((*clause->free_literals.begin()));
+                        unit_queue_literals.insert((*clause->free_literals.begin()));
                         (*clause->free_literals.begin())->reason = clause;
                     } else {
                         for (auto l : clause->free_literals) {
@@ -90,6 +92,10 @@ void Literal::assignValueCDCL(bool assigning_value) {
                     }
                 }
             }
+        }
+
+        for (Literal* l : unit_queue_literals) {
+            Literal::unit_queue.push(l);
         }
     }
 }
@@ -257,12 +263,10 @@ void Clause::unitPropagationCDCL() {
         Clause* unit_clause = next_literal->reason;
         // check literal is positive or negative in the unit clause to assign fitting value
         if (unit_clause->pos_literals_list.count(next_literal) >= 1) {
-            next_literal->assignValueCDCL(true);
+            next_literal->assignValueCDCL(true, Assignment::IsForced);
         } else {
-            next_literal->assignValueCDCL(false);
+            next_literal->assignValueCDCL(false, Assignment::IsForced);
         }
-        auto* new_assignment = new Assignment(Assignment::IsForced, next_literal);
-        new_assignment->updateStaticData();
         if (Printer::print_assignment) std::cout << "Literal " << next_literal->id << " forcing " << next_literal->value << "\n";
     }
 }
@@ -292,8 +296,6 @@ void Clause::setWatchedLiterals() {
         } else {
             this->watched_literal_2->neg_watched_occ.insert(this);
         }
-    } else {
-        // TODO:
     }
 }
 
@@ -313,13 +315,10 @@ void Assignment::branchingCDCL() {
     Literal* branching_literal = std::get<0>(t);
     bool assigning_value = std::get<1>(t);
     if (std::get<0>(t) != nullptr) {
-        branching_literal->assignValueCDCL(assigning_value);
+        branching_literal->assignValueCDCL(assigning_value, Assignment::IsBranching);
         // some update for literal
         branching_literal->reason = nullptr; // branching literal has no parent vertexes
         Literal::bd2BranLit[Assignment::bd] = branching_literal;
-        // new assignment
-        auto* new_assignment = new Assignment(Assignment::IsBranching, branching_literal);
-        new_assignment->updateStaticData();
         if (Printer::print_assignment) std::cout << "Literal " << branching_literal->id << " branching" << branching_literal->value << "\n";
         if (Printer::print_process) std::cout << "Finished branchingCDCL " << std::endl;
     }
@@ -367,22 +366,13 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
     if (!queue.empty()) {
         chosen_literal = queue.top();
 
-//    int highest_priority = -10000;
-//    for (auto [id, literal] : Literal::id2Lit) {
-//        if (literal->isFree && literal->prioty_level > highest_priority) {
-//            highest_priority = literal->prioty_level;
-//            chosen_literal = literal;
-//        }
-//    }
     // Choose value with more actual occur
         if (chosen_literal->getActualPosOcc(INT_MAX) >= chosen_literal->getActualNegOcc(INT_MAX)) value = true;
         else value = false;
     } else {
         if (Printer::print_CDCL_process) {
             std::cout << "Can't branching, all literals are assigned." << "\n";
-            std::cout << "Formula is UNSAT? " << Formula::isUNSAT << "\n";
-            std::cout << "Formula is SAT? " << Formula::isSAT << "\n";
-            std::cout << "Has conflict " << Clause::CONFLICT << "\n";
+            Printer::printAssignmentStack();
         }
     }
     return std::make_tuple(chosen_literal, value);

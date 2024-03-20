@@ -304,3 +304,33 @@ void Printer::printAllData() {
 void Printer::printResult() {
     // TODO: print result in DIMACS format
 }
+
+
+void Formula::preprocessing() {
+    Formula::removeInitialUnitClauses();
+}
+
+/**
+ * Any unit clause with one literal will have that literal assign value by force
+ */
+void Formula::removeInitialUnitClauses() {
+    if (Printer::print_CDCL_process) std::cout << "Finding initial unit clauses ..." << "\n";
+    for (auto c : Clause::list) {
+        int literal_count = c->pos_literals_list.size() + c->neg_literals_list.size();
+        if (literal_count == 1 && !c->free_literals.empty()) {
+            Literal* l = *(c->free_literals.begin()); // Error if free_literals is empty by previous loops
+            if (c->pos_literals_list.empty()) { // Only use this condition to finding suitable value in this case with initial unit clauses
+                l->assignValueCDCL(false, Assignment::IsForced);
+            }
+            else {
+                l->assignValueCDCL(true, Assignment::IsForced);
+            }
+        }
+//        else if (c->free_literals.empty() && !c->SAT) {
+//            c->reportConflict();
+//        }
+    }
+    if (Clause::CONFLICT) {
+        Formula::isUNSAT = true; // Conflict by initial unit clauses (all forced assignment) means unsatisfiable
+    }
+}

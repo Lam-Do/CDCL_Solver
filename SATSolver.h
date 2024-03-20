@@ -53,7 +53,7 @@ public:
     void updateStaticData();
     void setFree();
     void assignValueDPLL(bool, bool);
-    void assignValueCDCL(bool);
+    void assignValueCDCL(bool, bool);
     void unassignValueDPLL();
     void unassignValueCDCL();
     int getActualPosOcc(int);
@@ -149,6 +149,8 @@ struct Formula {
     static int branching_count;
 
     static void restart();
+    static void preprocessing();
+    static void removeInitialUnitClauses();
 };
 
 struct Printer {
