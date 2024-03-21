@@ -162,6 +162,7 @@ struct Formula {
     static void preprocessing();
     static void removeInitialUnitClauses();
     static void removeSATClauses();
+    static void pureLiteralsEliminate();
 };
 
 struct Printer {

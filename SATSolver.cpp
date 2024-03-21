@@ -359,6 +359,7 @@ void Printer::printResult() {
 void Formula::preprocessing() {
     Formula::removeInitialUnitClauses();
     Formula::removeSATClauses();
+    Formula::pureLiteralsEliminate();
 }
 
 /**
@@ -398,6 +399,24 @@ void Formula::removeSATClauses(){
             for (Clause* c : intersect) {
                 if (Printer::print_CDCL_process) std::cout << "Clause " << c->id << " is SAT." << "\n";
                 c->deleteClause();
+            }
+        }
+    }
+}
+
+/**
+ * Assign value to all pure literals, which have at the moment of calling function only positive or negative occurrences in UNSAT clauses, with forced assignment.
+ * Pure literals can appear during process after remove SAT clauses are SAT from consideration.
+ */
+void Formula::pureLiteralsEliminate() {
+    if (Printer::print_CDCL_process) std::cout << "Pure literal eliminating..." << "\n";
+    for (const auto& id2ad : Literal::id2Lit) {
+        Literal* l = id2ad.second;
+        if (l->isFree) {
+            if (l->getActualPosOcc(INT_MAX) == 0) {
+                l->assignValueCDCL(false, Assignment::IsForced);
+            } else if (l->getActualNegOcc(INT_MAX) == 0) {
+                l->assignValueCDCL(true, Assignment::IsForced);
             }
         }
     }

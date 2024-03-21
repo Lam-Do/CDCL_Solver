@@ -205,9 +205,9 @@ void reset() {
     if (Printer::print_process) cout << "Data reseted" << endl;
 
     Literal::count = 0;
-//    for (auto [id, l] : Literal::id2Lit) {
-//        delete l;
-//    }
+    for (auto [id, l] : Literal::id2Lit) {
+        delete l;
+    }
     Literal::id_list.clear();
     Literal::id2Lit.clear();
     while (!Literal::unit_queue.empty()){Literal::unit_queue.pop();}
@@ -215,9 +215,9 @@ void reset() {
     while (!Literal::pq.empty()) {Literal::pq.pop();}
 
     Clause::count = 0;
-//    for (auto c : Clause::list) {
-//        delete c;
-//    }
+    for (auto c : Clause::list) {
+        delete c;
+    }
     Clause::list.clear();
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
@@ -328,24 +328,6 @@ void parse(const vector<vector<int>>& formula) {
         cout << "Number of clauses: " << Clause::list.size() << "\n";
         Printer::printAllData();
         cout<<"Finish parsing"<<"\n";
-    }
-}
-
-/**
- * Assign value to all pure literals, which have at the moment of calling function only positive or negative occurrences in UNSAT clauses, with forced assignment.
- * Pure literals can appear during process after remove SAT clauses are SAT from consideration.
- */
-void pureLiteralsEliminate() {
-    if (Printer::print_process) cout << "Pure literal eliminating..." << "\n";
-    for (const auto& id2ad : Literal::id2Lit) {
-        Literal* l = id2ad.second;
-        if (l->isFree) {
-            if (l->getActualPosOcc(INT_MAX) == 0) {
-                l->assignValueDPLL(false, Assignment::IsForced);
-            } else if (l->getActualNegOcc(INT_MAX) == 0) {
-                l->assignValueDPLL(true, Assignment::IsForced);
-            }
-        }
     }
 }
 
