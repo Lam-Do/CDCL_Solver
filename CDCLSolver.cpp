@@ -109,7 +109,7 @@ void Clause::reportConflict() {
 }
 
 /**
- * Unassigning value the literal.
+ * Unassigned value the literal.
  * Data of related clauses with be updated. Clauses will not be set to UNSAT as long as there is a literal in sat_by list.
  * branching_level got reset.
  * Choose the second watched literal for learned clauses
@@ -232,7 +232,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
     }
     if (Printer::print_learned_clause) {
         new_clause->printData();
-        std::cout << new_clause->getAllLiterals().size() << "\n";
+        std::cout << new_clause->getWidth() << "\n";
     }
 }
 
@@ -241,7 +241,6 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
  * Assignment stack will be pop all assignment with depth > asserting level d of the learn clause (non-chronological backtracking)
  * Literals will be unassigned accordingly.
  */
-
 void Assignment::backtrackingCDCL() {
     // pop all forced assignment, stop at last branchingDPLL assignment or stack empty
     while (!Assignment::stack.empty() && Assignment::stack.top()->assigned_literal->branching_level > Clause::learned_clause_assertion_level) {
@@ -263,9 +262,12 @@ void Assignment::backtrackingCDCL() {
     Assignment::bd = Clause::learned_clause_assertion_level;
     Clause::CONFLICT = false;
     Clause::conflict_clause = nullptr;
-    if (Printer::print_process) std::cout << "Backtracking successfully" << "\n";
+    if (Printer::print_CDCL_process) std::cout << "Backtracking successfully" << "\n";
 }
 
+/**
+ * find and propagate all literal in unit_queue and assign value to these literal by force
+ */
 void Clause::unitPropagationCDCL() {
     if (Printer::print_CDCL_process) std::cout << "Unit propagating..." << "\n";
     while (!(Literal::unit_queue.empty()) && !Clause::CONFLICT) {
@@ -284,7 +286,7 @@ void Clause::unitPropagationCDCL() {
 
 /**
  * Set up 2 watched literals for clause. If it's unit clause, push to unit_queue.
- * Also remove clause with 2 literals of the same variable
+ * Also remove initial clauses with 2 literals of the same variable. a v -a
  */
 void Clause::setWatchedLiterals() {
     int clause_size = this->pos_literals_list.size() + this->neg_literals_list.size();
@@ -308,12 +310,16 @@ void Clause::setWatchedLiterals() {
             } else {
                 this->watched_literal_2->neg_watched_occ.insert(this);
             }
-        } else if (this->free_literals.size() == 1) { // Clause's width = 2 with 1 free_literal: a v -a
+        } else if (this->free_literals.size() == 1) { // Clause's width = 2 with 1 free_literal
             this->deleteClause();
         }
     }
 }
 
+/**
+ * Branching in case unit_queue is empty (no unit clause), no CONFLICT, no SAT or UNSAT flag.
+ * Function using heuristics VSIDS to choose a literal then assign value.
+ */
 void Assignment::branchingCDCL() {
     if (Printer::print_process) std::cout << "Start branchingCDCL " << "\n";
 
@@ -393,21 +399,8 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
     return std::make_tuple(chosen_literal, value);
 }
 
-//std::tuple<Literal*, bool> Heuristic::BerkMin() {
-//    std::tuple<Literal*, bool> t;
-//    // TODO
-//    return t;
-//}
-//
-//std::tuple<Literal*, bool> Heuristic::VMTF() {
-//    std::tuple<Literal*, bool> t;
-//    // TODO
-//    return t;
-//}
-
 void LearnedClause::updateLearnedStaticData() {
-    Clause::count++;
-    Clause::list.insert(this);
+    this->updateStaticData();
     LearnedClause::learned_list.insert(this);
 }
 
@@ -434,7 +427,9 @@ void Literal::deleteLiteral() {
     // TODO
 }
 
-
+/**
+ * Disconnect the clause from data structure, except original clause_count
+ */
 void Clause::deleteClause() {
     // Update literals
     for (Literal* l : this->pos_literals_list) {
@@ -459,6 +454,29 @@ void Clause::deleteClause() {
 void LearnedClause::deleteLearnedClause() {
     this->deleteClause();
     LearnedClause::learned_list.erase(this);
+}
+
+void LearnedClause::setDeletionStrategyValue() {
+    // TODO: change k and m base on var_count and clause_count
+}
+
+/**
+ * Out of bound learned clauses got deleted after m literals in the clause are unassigned
+ */
+void LearnedClause::checkDeletion() {
+    std::unordered_set<LearnedClause*> deleted_clauses;
+    for (LearnedClause* c : LearnedClause::learned_list) {
+        if (c->getWidth() > LearnedClause::k_bounded_learning && c->getUnsetLiteralsCount() > LearnedClause::m_size_relevance_based_learning) {
+            deleted_clauses.insert(c);
+        }
+    }
+    if (!deleted_clauses.empty()) {
+        for (LearnedClause* c : deleted_clauses) {
+            c->deleteLearnedClause();
+            delete c;
+        }
+    }
+
 }
 
 void Formula::restart() {

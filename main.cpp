@@ -24,6 +24,9 @@ Clause* Clause::conflict_clause = nullptr;
 std::unordered_set<Clause*> Clause::list = {};
 std::unordered_set<LearnedClause*> LearnedClause::learned_list = {};
 int Clause::learned_clause_assertion_level = 0;
+// Learned CLause:
+int LearnedClause::k_bounded_learning = 15;
+int LearnedClause::m_size_relevance_based_learning = 5;
 // Assignment:
 stack<Assignment*> Assignment::stack = {};
 vector<stack<Assignment*>> Assignment::assignment_history = {};
@@ -165,6 +168,7 @@ void runCDCL(const std::string& path) {
                 Clause::conflictAnalyze();
                 if (!Formula::isUNSAT) {
                     Assignment::backtrackingCDCL();
+                    LearnedClause::checkDeletion();
                 }
             }
             Formula::isSAT = Clause::checkAllClausesSAT();

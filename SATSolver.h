@@ -89,7 +89,9 @@ public:
     void updateStaticData();
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
+    int getWidth();
     void setWatchedLiterals();
+    void deleteClause();
 
     static void setNewClause(std::vector<int>& c);
     static void conflictAnalyze();
@@ -100,7 +102,6 @@ public:
     static bool checkAllClausesSAT();
     static bool isAsserting(const std::unordered_set<Literal *> &cut);
 
-    void deleteClause();
 };
 
 class LearnedClause: public Clause {
@@ -108,11 +109,16 @@ public:
     // TODO: more field for deleting strategies
 
     static std::unordered_set<LearnedClause*> learned_list;
+    static int k_bounded_learning;
+    static int m_size_relevance_based_learning;
 
     explicit LearnedClause(int i) : Clause(i) {};
     void updateLearnedStaticData();
     void setWatchedLiteral(Literal*);
     void deleteLearnedClause();
+    void setDeletionStrategyValue();
+
+    static void checkDeletion();
 };
 
 /**
