@@ -230,10 +230,9 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
         }
         l->learned_count++;
     }
-    // TODO: update learned clause fields
-//    new_clause->setWatchedLiterals();
     if (Printer::print_learned_clause) {
         new_clause->printData();
+        std::cout << new_clause->getAllLiterals().size() << "\n";
     }
 }
 
@@ -285,28 +284,32 @@ void Clause::unitPropagationCDCL() {
 
 /**
  * Set up 2 watched literals for clause. If it's unit clause, push to unit_queue.
- * Also work as pesuado
+ * Also remove clause with 2 literals of the same variable
  */
 void Clause::setWatchedLiterals() {
     int clause_size = this->pos_literals_list.size() + this->neg_literals_list.size();
     if (clause_size >= 2) {
-        // Choose 2 random watched literals for the clause
-        if (!this->SAT && clause_size >= 2) { // Only SATable by prepocessing(),
-            this->watched_literal_1 = *(this->free_literals.begin()); // randomly access due to unordered
-            std::unordered_set<Literal*> unwatched_free_literals = this->free_literals;
-            unwatched_free_literals.erase(this->watched_literal_1);
-            this->watched_literal_2 = *(unwatched_free_literals.begin());
-        }
-        // Add clause address to pos/neg_watched_occ of watched literals
-        if (this->pos_literals_list.contains(this->watched_literal_1)) {
-            this->watched_literal_1->pos_watched_occ.insert(this);
-        } else {
-            this->watched_literal_1->neg_watched_occ.insert(this);
-        }
-        if (this->pos_literals_list.contains(this->watched_literal_2)) {
-            this->watched_literal_2->pos_watched_occ.insert(this);
-        } else {
-            this->watched_literal_2->neg_watched_occ.insert(this);
+        if (this->free_literals.size() >= 2) {
+            // Choose 2 random watched literals for the clause
+            if (!this->SAT && clause_size >= 2) { // Only SATable by prepocessing(),
+                this->watched_literal_1 = *(this->free_literals.begin()); // randomly access due to unordered
+                std::unordered_set<Literal*> unwatched_free_literals = this->free_literals;
+                unwatched_free_literals.erase(this->watched_literal_1);
+                this->watched_literal_2 = *(unwatched_free_literals.begin());
+            }
+            // Add clause address to pos/neg_watched_occ of watched literals
+            if (this->pos_literals_list.contains(this->watched_literal_1)) {
+                this->watched_literal_1->pos_watched_occ.insert(this);
+            } else {
+                this->watched_literal_1->neg_watched_occ.insert(this);
+            }
+            if (this->pos_literals_list.contains(this->watched_literal_2)) {
+                this->watched_literal_2->pos_watched_occ.insert(this);
+            } else {
+                this->watched_literal_2->neg_watched_occ.insert(this);
+            }
+        } else if (this->free_literals.size() == 1) { // Clause's width = 2 with 1 free_literal: a v -a
+            this->deleteClause();
         }
     }
 }
@@ -404,9 +407,8 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
 
 void LearnedClause::updateLearnedStaticData() {
     Clause::count++;
-    Clause::list.emplace_back(this);
-    LearnedClause::learned_list.emplace_back(this);
-    // TODO: further update static data if necessary
+    Clause::list.insert(this);
+    LearnedClause::learned_list.insert(this);
 }
 
 void LearnedClause::setWatchedLiteral(Literal * l) {
@@ -432,8 +434,31 @@ void Literal::deleteLiteral() {
     // TODO
 }
 
-void Clause::deleteClause() {
 
+void Clause::deleteClause() {
+    // Update literals
+    for (Literal* l : this->pos_literals_list) {
+        l->pos_occ.erase(this);
+        if (this->watched_literal_1 == l || this->watched_literal_2 == l) {
+            l->pos_watched_occ.erase(this);
+        }
+        if (this == l->reason) l->reason = nullptr;
+    }
+    for (Literal* l : this->neg_literals_list) {
+        l->neg_occ.erase(this);
+        if (this->watched_literal_1 == l || this->watched_literal_2 == l) {
+            l->neg_watched_occ.erase(this);
+        }
+        if (this == l->reason) l->reason = nullptr;
+    }
+    this->SAT = true;
+    if (Clause::conflict_clause == this) Clause::conflict_clause = nullptr;
+    Clause::list.erase(this);
+}
+
+void LearnedClause::deleteLearnedClause() {
+    this->deleteClause();
+    LearnedClause::learned_list.erase(this);
 }
 
 void Formula::restart() {

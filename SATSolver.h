@@ -39,7 +39,7 @@ public:
 
     static int count;
     static std::unordered_map<int, Literal*> id2Lit; // dictionary id to address
-    static std::unordered_set<int> id_list;
+    static std::unordered_set<int> id_list; // check if literal is already existed in database when creating clause
     static std::queue<Literal*> unit_queue;
     static std::unordered_map<int, Literal*> bd2BranLit; // storing all literals assigned by branching
 //    bool comparingPriorities = [](Literal* l1, Literal* l2) { return l1->prioty_level > l2->prioty_level;};
@@ -67,7 +67,7 @@ public:
 
 class Clause {
 public:
-    const int id;
+    const int id; // for output to terminal, no value in solving process, can be discontinuous for learned clauses
     std::unordered_set<Literal*> pos_literals_list; // List of positive/negative literals, unchanged during solving process
     std::unordered_set<Literal*> neg_literals_list;
     std::unordered_set<Literal*> free_literals = {};// List of free literals, reduce/add after one is assigned/unassigned
@@ -76,8 +76,8 @@ public:
     Literal* watched_literal_2 = nullptr;
     bool SAT = false;
 
-    static int count; // clauses uses this for id, initial with 1 instead of 0 because a clause is created with id = count before count got increment by 1.
-    static std::vector<Clause*> list;
+    static int count; // clauses uses this to set id, initial with 1 instead of 0 because a clause is created with id = count before count got increment by 1.
+    static std::unordered_set<Clause*> list;
     static bool CONFLICT;
     static Clause* conflict_clause;
     static int learned_clause_assertion_level;
@@ -90,7 +90,6 @@ public:
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
     void setWatchedLiterals();
-    void deleteClause();
 
     static void setNewClause(std::vector<int>& c);
     static void conflictAnalyze();
@@ -100,18 +99,20 @@ public:
     static bool isDecisionCut(const std::unordered_set<Literal *>& cut);
     static bool checkAllClausesSAT();
     static bool isAsserting(const std::unordered_set<Literal *> &cut);
+
+    void deleteClause();
 };
 
 class LearnedClause: public Clause {
 public:
     // TODO: more field for deleting strategies
 
-    static std::vector<LearnedClause*> learned_list;
+    static std::unordered_set<LearnedClause*> learned_list;
 
     explicit LearnedClause(int i) : Clause(i) {};
     void updateLearnedStaticData();
     void setWatchedLiteral(Literal*);
-
+    void deleteLearnedClause();
 };
 
 /**
@@ -152,6 +153,7 @@ struct Formula {
     static void restart();
     static void preprocessing();
     static void removeInitialUnitClauses();
+    static void removeSATClauses();
 };
 
 struct Printer {

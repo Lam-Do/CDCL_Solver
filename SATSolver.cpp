@@ -3,6 +3,25 @@
 #include <algorithm>
 #include "SATSolver.h"
 
+/**
+ * Find intersection between two unordered set of type T
+ * @tparam T Any type
+ * @param s1 First set
+ * @param s2 Second set
+ * @return Unordered set of elements which both inputted sets contain.
+ */
+template<typename T>
+std::unordered_set<T> findIntersection(const std::unordered_set<T>& s1, const std::unordered_set<T>& s2) {
+    std::unordered_set<T> intersection;
+
+    for (const T& e : s1) {
+        if (s2.contains(e)) {
+            intersection.insert(e);
+        }
+    }
+    return intersection;
+}
+
 void Literal::setFree() {
     this->isFree = true;
 }
@@ -134,7 +153,7 @@ void Literal::updateStaticData() {
  */
 void Clause::updateStaticData() {
     Clause::count++;
-    Clause::list.emplace_back(this);
+    Clause::list.insert(this);
 }
 
 void Assignment::updateStaticData() {
@@ -313,6 +332,7 @@ void Printer::printResult() {
 
 void Formula::preprocessing() {
     Formula::removeInitialUnitClauses();
+    Formula::removeSATClauses();
 }
 
 /**
@@ -331,11 +351,28 @@ void Formula::removeInitialUnitClauses() {
                 l->assignValueCDCL(true, Assignment::IsForced);
             }
         }
-//        else if (c->free_literals.empty() && !c->SAT) {
-//            c->reportConflict();
-//        }
     }
     if (Clause::CONFLICT) {
         Formula::isUNSAT = true; // Conflict by initial unit clauses (all forced assignment) means unsatisfiable
+    }
+}
+
+/**
+ * Clauses having at least literal occur in both positive and negative are SAT by default and will be removed
+ */
+void Formula::removeSATClauses(){
+    // check basic SAT condition
+    // check a clause contain a literal both pos and neg
+    if (Printer::print_CDCL_process) std::cout << "Finding initial SAT clauses..." << "\n";
+    for (const auto& id2ad : Literal::id2Lit) {
+        Literal* literal = id2ad.second;
+        // a literal appear both pos and neg in a clause, that clause is alway SAT, can remove from the process.
+        std::unordered_set<Clause*> intersect = findIntersection(literal->pos_occ, literal->neg_occ);
+        if (!intersect.empty()) {
+            for (Clause* c : intersect) {
+                if (Printer::print_CDCL_process) std::cout << "Clause " << c->id << " is SAT." << "\n";
+                c->deleteClause();
+            }
+        }
     }
 }

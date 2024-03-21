@@ -21,8 +21,8 @@ std::priority_queue<Literal*, std::vector<Literal*>, Literal::Compare> Literal::
 int Clause::count = 1;
 bool Clause::CONFLICT = false;
 Clause* Clause::conflict_clause = nullptr;
-vector<Clause*> Clause::list = {};
-std::vector<LearnedClause*> LearnedClause::learned_list = {};
+std::unordered_set<Clause*> Clause::list = {};
+std::unordered_set<LearnedClause*> LearnedClause::learned_list = {};
 int Clause::learned_clause_assertion_level = 0;
 // Assignment:
 stack<Assignment*> Assignment::stack = {};
@@ -333,25 +333,6 @@ void pureLiteralsEliminate() {
     }
 }
 
-/**
- * Find intersection between two unordered set of type T
- * @tparam T Any type
- * @param s1 First set
- * @param s2 Second set
- * @return Unordered set of elements which both inputted sets contain.
- */
-template<typename T>
-unordered_set<T> findIntersection(const unordered_set<T>& s1, const unordered_set<T>& s2) {
-    unordered_set<T> intersection;
-
-    for (const T& e : s1) {
-        if (s2.count(e)) {
-            intersection.insert(e);
-        }
-    }
-    return intersection;
-}
-
 ///**
 // * Implement some techniques to simplify SAT instance.
 // */
@@ -361,31 +342,4 @@ unordered_set<T> findIntersection(const unordered_set<T>& s1, const unordered_se
 //    removeInitialUnitClauses();
 //    if (Printer::print_process) cout << "Finish simplifying" << endl;
 //}
-
-/**
- * Clauses having at least literal occur in both positive and negative are SAT by default and will be removed
- */
-void removeSATClauses(){
-    // check basic SAT condition
-    // check a clause contain a literal both pos and neg
-    if (Printer::print_process) cout << "Finding SAT clauses..." << "\n";
-    for (const auto& id2ad : Literal::id2Lit) {
-        Literal* literal = id2ad.second;
-        // a literal appear both pos and neg in a clause, that clause is alway SAT, can remove from the process.
-        unordered_set<Clause*> intersect = findIntersection(literal->pos_occ, literal->neg_occ);
-        if (!intersect.empty()) {
-            for (auto c : intersect) {
-                if (Printer::print_process) cout << "Clause " << c->id << " is SAT." << "\n";
-                Clause::list.erase(Clause::list.begin() + c->id - 1);
-                // erase in all connected literals
-                for (auto l : c->pos_literals_list) {
-                    l->pos_occ.erase(c);
-                }
-                for (auto l : c->neg_literals_list) {
-                    l->neg_occ.erase(c);
-                }
-            }
-        }
-    }
-}
 
