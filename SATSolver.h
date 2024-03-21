@@ -110,6 +110,7 @@ public:
 
     explicit LearnedClause(int i) : Clause(i) {};
     void updateLearnedStaticData();
+    void setWatchedLiteral(Literal*);
 
 };
 

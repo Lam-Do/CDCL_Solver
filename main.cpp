@@ -65,14 +65,6 @@ bool Printer::print_learned_clause = false;
 bool Printer::print_max_depth_literal = false;
 
 
-/**
- CDCL implement log:
-    void runCDCL(const std::string&);
-    string Assignment::branching_heuristic; // keeping branching_heuristic's name
-    setWatchedLiterals()
-    refactor clause pos/neg_literals_list to unordered set
- */
-
 int main() {
     string path;
     string select;

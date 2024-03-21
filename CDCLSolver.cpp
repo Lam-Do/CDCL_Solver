@@ -111,14 +111,16 @@ void Clause::reportConflict() {
 /**
  * Unassigning value the literal.
  * Data of related clauses with be updated. Clauses will not be set to UNSAT as long as there is a literal in sat_by list.
- * branching_level and reason field got reset.
+ * branching_level got reset.
+ * Choose the second watched literal for learned clauses
  */
 void Literal::unassignValueCDCL() {
     this->setFree();
+
     // "reason" field is not reassigned to null
     // since it can remove the learned clause as "reason" from the source branching literal when learning cut
-    //
 //    this->reason = nullptr;
+
     if (this->value == true) {
         for (auto clause : this->pos_occ) {
             clause->sat_by.erase(this);
@@ -126,9 +128,15 @@ void Literal::unassignValueCDCL() {
                 clause->SAT = false;
             }
             clause->free_literals.insert(this);
+            // Only learned clauses don't have second watched literal when reaching here.
+            // Avoid mark the first watched literal second time.
+            if (clause->watched_literal_1 != this && clause->watched_literal_2 == nullptr) {
+                clause->watched_literal_2 = this;
+            }
         }
         for (auto clause : this->neg_occ) {
             clause->free_literals.insert(this);
+            if (clause->watched_literal_1 != this && clause->watched_literal_2 == nullptr) clause->watched_literal_2 = this;
         }
     } else {
         for (auto clause : this->neg_occ) {
@@ -137,9 +145,12 @@ void Literal::unassignValueCDCL() {
                 clause->SAT = false;
             }
             clause->free_literals.insert(this);
+            if (clause->watched_literal_1 != this && clause->watched_literal_2 == nullptr) clause->watched_literal_2 = this;
+
         }
         for (auto clause : this->pos_occ) {
             clause->free_literals.insert(this);
+            if (clause->watched_literal_1 != this && clause->watched_literal_2 == nullptr) clause->watched_literal_2 = this;
         }
     }
     this->branching_level = -1;
@@ -209,6 +220,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
             // enqueue new learn clause as unit clause, literal with the highest depth (the old branching literal) is push to unit_queue
             Literal::unit_queue.push(l);
             l->reason = new_clause;
+            new_clause->watched_literal_1 = l; // mark first watched literal, second one is assigned later by first time unassigned
             if (Printer::print_max_depth_literal) {
                 l->printData();
                 std::cout<< "has depth " << l->branching_level << "\n";
@@ -219,7 +231,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
         l->learned_count++;
     }
     // TODO: update learned clause fields
-    new_clause->setWatchedLiterals();
+//    new_clause->setWatchedLiterals();
     if (Printer::print_learned_clause) {
         new_clause->printData();
     }
@@ -395,6 +407,11 @@ void LearnedClause::updateLearnedStaticData() {
     Clause::list.emplace_back(this);
     LearnedClause::learned_list.emplace_back(this);
     // TODO: further update static data if necessary
+}
+
+void LearnedClause::setWatchedLiteral(Literal * l) {
+    if (this->watched_literal_1 == nullptr) this->watched_literal_1 = l;
+    if (this->watched_literal_2 == nullptr && this->watched_literal_1 != l) this->watched_literal_2 = l;
 }
 
 void Literal::updatePriorities() {

@@ -61,16 +61,21 @@ void Literal::printData() {
 /**
  * Save literal to clause's positive and negative literal list accordingly, and also all to free literals list.
  *
- * @param literal_ad Pointer to literal
- * @param isPos "true" if positive literal, "false" otherwise
+ * @param literal Pointer to literal
+ * @param is_pos_occ "true" if positive literal, "false" otherwise
  */
-void Clause::appendLiteral(Literal* literal_ad, bool isPos) {
-    if (isPos) {
-        this->pos_literals_list.insert(literal_ad);
+void Clause::appendLiteral(Literal* literal, bool is_pos_occ) {
+    if (is_pos_occ) {
+        this->pos_literals_list.insert(literal);
     } else {
-        this->neg_literals_list.insert(literal_ad);
+        this->neg_literals_list.insert(literal);
     }
-    this->free_literals.insert(literal_ad);
+    // literal is free when initial parse, unless when parsing to new learned clause
+    if (literal->isFree) this->free_literals.insert(literal);
+    else {
+        if (literal->value == true && is_pos_occ) this->sat_by.insert(literal);
+        if (literal->value == false && !is_pos_occ) this->sat_by.insert(literal);
+    }
 }
 
 /**
