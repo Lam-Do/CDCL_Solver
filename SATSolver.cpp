@@ -362,7 +362,7 @@ void Formula::preprocessing() {
     Formula::removeInitialUnitClauses();
     Formula::removeSATClauses();
     Formula::pureLiteralsEliminate();
-    Formula::NiVER();
+//    Formula::NiVER();
 }
 
 /**
@@ -443,7 +443,7 @@ void Formula::NiVER() {
         change = false;
 
         for (auto [id, literal_x] : Literal::id2Lit) {
-
+            if (literal_x->pos_occ.empty() || literal_x->neg_occ.empty()) continue;
             // Find all possiable resolvent
             std::unordered_set<Literal*> all_clauses_lit_occ;
             all_clauses_lit_occ.insert(literal_x);
@@ -529,16 +529,16 @@ void Formula::NiVER() {
 
             // Check SIZE and update data structure. Literal x got deleted by deleting all old clauses, disconnected from data structure
             if (all_resolvents_lit_occ.size() < all_clauses_lit_occ.size() && resolvents_S.size() < literal_x->pos_occ.size() + literal_x->neg_occ.size()) {
-                change = true;
-                literal_x->isFree = false;  // hide from static field, can't set free again since no clause contain x
-                for (auto c : resolvents_S) {
-                    Clause::setNewClause(c);
-                }
                 for (Clause* c : literal_x->pos_occ) {
                     c->deleteClause();
                 }
                 for (Clause* c : literal_x->neg_occ) {
                     c->deleteClause();
+                }
+                change = true;
+                literal_x->isFree = false;  // hide from static field, can't set free again since no clause contain x
+                for (auto c : resolvents_S) {
+                    Clause::setNewClause(c);
                 }
                 if (Printer::check_NiVER) std::cout << "Literal " << literal_x->id << " is deleted" << "\n";
             }
