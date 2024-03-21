@@ -68,7 +68,7 @@ bool Printer::print_CDCL_process = false;
 bool Printer::print_assignment = false;
 bool Printer::print_learned_clause = false;
 bool Printer::print_max_depth_literal = false;
-
+std::unordered_set<Literal*> Printer::flipped_literals = {};
 
 int main() {
     string path;
@@ -156,11 +156,13 @@ int main() {
 */
 void runCDCL(const std::string& path) {
     auto start_time = std::chrono::high_resolution_clock::now();
+
     vector<vector<int>> formula = readDIMACS(path);
+
     if (!formula.empty()) {
+        std::cout << "Start solving with TIMEOUT fixed to " << MAX_RUN_TIME/1000 << "s"<< "\n";
         parse(formula);
         Formula::preprocessing();
-        // TODO: CDCL implement
         while (!Formula::isSAT && !Formula::isUNSAT && run_time.count() < MAX_RUN_TIME) {
             Clause::unitPropagationCDCL();
             if (!Formula::isSAT && !Formula::isUNSAT && Literal::unit_queue.empty() && !Clause::CONFLICT) {
@@ -180,23 +182,22 @@ void runCDCL(const std::string& path) {
             Formula::isSAT = Clause::checkAllClausesSAT();
             run_time = std::chrono::high_resolution_clock::now() - start_time;
         }
+
         // Output result
         if (Formula::isSAT) {
-            cout << "The problem is satisfiable!" << "\n";
+            cout << "s SATISFIABLE" << "\n";
             Printer::printResult();
         } else if (Formula::isUNSAT) {
-            cout << "The problem is unsatisfiable!" << "\n";
-            Printer::printResult();
+            cout << "s UNSATISFIABLE" << "\n";
         } else {
-            cout << "Time run out!" << "\n";
-            Printer::printResult();
+            cout << "s UNKNOWN - TIMEOUT" << "\n";
         }
     } else if (formula.empty()) {
-        cerr << "File at " << path << " is empty or error opening!" << endl;
+        cerr << "File at " << path << " is empty or there are errors when opening!" << endl;
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     run_time = end_time - start_time;
-    std::cout << "Runtime: " << run_time.count() << "ms" << endl;
+    std::cout << "c Done (runtime is " << run_time.count() << "ms)" << std::endl;
     reset();
 }
 
@@ -238,6 +239,7 @@ void reset() {
     Formula::conflict_count = 0;
     Formula::conflict_count_limit = 100;
 
+    Printer::flipped_literals.clear();
     run_time = std::chrono::high_resolution_clock::duration::zero();
 }
 

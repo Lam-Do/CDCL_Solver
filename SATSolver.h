@@ -172,6 +172,7 @@ struct Printer {
     static bool print_assignment;
     static bool print_learned_clause;
     static bool print_max_depth_literal;
+    static std::unordered_set<Literal*> flipped_literals;
 
     static void printAssignmentStack();
     static void printAssignmentHistory();

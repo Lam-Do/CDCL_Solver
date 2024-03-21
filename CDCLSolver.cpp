@@ -213,6 +213,8 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
             Literal::unit_queue.push(l);
             l->reason = new_clause;
             new_clause->watched_literal_1 = l; // mark first watched literal, second one is assigned later by first time unassigned
+
+            Printer::flipped_literals.insert(l);
             if (Printer::print_max_depth_literal) {
                 l->printData();
                 std::cout<< "has depth " << l->branching_level << "\n";
@@ -416,7 +418,6 @@ void Literal::updatePriorities() {
 }
 
 void Literal::deleteLiteral() {
-    // TODO
 }
 
 /**
@@ -491,4 +492,5 @@ void Formula::restart() {
     Formula::branching_count = 0;
     Formula::conflict_count = 0;
     Formula::conflict_count_limit = Formula::conflict_count_limit * 1.5;
+    Printer::flipped_literals.clear();
 }

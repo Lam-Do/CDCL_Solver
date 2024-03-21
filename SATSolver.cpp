@@ -326,8 +326,33 @@ void Printer::printAllData() {
     }
 }
 
+/**
+ * Print assign values when SAT, branching variables or variables got flipped after backtracking.
+ */
 void Printer::printResult() {
-    // TODO: print result in DIMACS format
+    std::cout << "v ";
+    int variable_per_line_count = 0;
+    for (auto [bd, literal]: Literal::bd2BranLit) {
+        if (variable_per_line_count == 5) {
+            std::cout << "\n" << "v ";
+            variable_per_line_count = 0;
+        }
+        if (literal->value == true) std::cout << literal->id << " ";
+        else std::cout << -abs(literal->id) << " ";
+        variable_per_line_count++;
+    }
+    std::cout << "\n" << "c" << "\n" << "v ";
+    variable_per_line_count = 0;
+    for (Literal* literal : Printer::flipped_literals) {
+        if (variable_per_line_count == 5) {
+            std::cout << "\n" << "v ";
+            variable_per_line_count = 0;
+        }
+        if (literal->value == true) std::cout << literal->id << " ";
+        else std::cout << -abs(literal->id) << " ";
+        variable_per_line_count++;
+    }
+    std::cout << std::endl;
 }
 
 
