@@ -89,7 +89,7 @@ public:
     void updateStaticData();
     void reportConflict();
     std::unordered_set<Literal*> getAllLiterals();
-    int getWidth();
+    int getWidth() const;
     void setWatchedLiterals();
     void deleteClause();
 
@@ -155,6 +155,8 @@ struct Formula {
     static int var_count;
     static int clause_count;
     static int branching_count;
+    static int conflict_count;
+    static int conflict_count_limit;
 
     static void restart();
     static void preprocessing();

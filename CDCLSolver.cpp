@@ -101,14 +101,6 @@ void Literal::assignValueCDCL(bool assigning_value, bool status) {
 }
 
 /**
- * Set CONFLICT flag. Save the conflict clause.
- */
-void Clause::reportConflict() {
-    Clause::CONFLICT = true;
-    Clause::conflict_clause = this;
-}
-
-/**
  * Unassigned value the literal.
  * Data of related clauses with be updated. Clauses will not be set to UNSAT as long as there is a literal in sat_by list.
  * branching_level got reset.
@@ -250,7 +242,7 @@ void Assignment::backtrackingCDCL() {
         }
         top_assignment->assigned_literal->unassignValueCDCL();
         Assignment::stack.pop();
-//        delete top_assignment;
+        delete top_assignment;
     }
     /**
      * branching literal has highest depth bd which always > asserting level, is popped in while loop
@@ -480,5 +472,23 @@ void LearnedClause::checkDeletion() {
 }
 
 void Formula::restart() {
-
+    while (!Literal::unit_queue.empty()) {
+        Literal::unit_queue.front()->reason = nullptr;
+        Literal::unit_queue.pop();
+    }
+    Literal::bd2BranLit.clear();
+    // Except assignment depth 0 from preprocessing, undo all
+    while (!Assignment::stack.empty() && Assignment::stack.top()->assigned_literal->branching_level > 0) {
+        Assignment* top_assignment = Assignment::stack.top();
+        Literal::bd2BranLit.clear();
+        top_assignment->assigned_literal->unassignValueCDCL();
+        Assignment::stack.pop();
+        delete top_assignment;
+    }
+    Assignment::bd = 0;
+    Clause::CONFLICT = false;
+    Clause::conflict_clause = nullptr;
+    Formula::branching_count = 0;
+    Formula::conflict_count = 0;
+    Formula::conflict_count_limit = Formula::conflict_count_limit * 1.5;
 }

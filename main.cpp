@@ -40,6 +40,8 @@ bool Formula::isUNSAT = false;
 int Formula::var_count = 0;
 int Formula::clause_count = 0;
 int Formula::branching_count = 0;
+int Formula::conflict_count = 0;
+int Formula::conflict_count_limit = 100;
 
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
@@ -165,10 +167,14 @@ void runCDCL(const std::string& path) {
                 Assignment::branchingCDCL();
             }
             if (!Formula::isSAT && !Formula::isUNSAT && Clause::CONFLICT) {
-                Clause::conflictAnalyze();
-                if (!Formula::isUNSAT) {
-                    Assignment::backtrackingCDCL();
-                    LearnedClause::checkDeletion();
+                if (Formula::conflict_count == Formula::conflict_count_limit) {
+                    Formula::restart();
+                } else {
+                    Clause::conflictAnalyze();
+                    if (!Formula::isUNSAT) {
+                        Assignment::backtrackingCDCL();
+                        LearnedClause::checkDeletion();
+                    }
                 }
             }
             Formula::isSAT = Clause::checkAllClausesSAT();
@@ -229,6 +235,8 @@ void reset() {
     Formula::clause_count = 0;
     Formula::var_count = 0;
     Formula::branching_count = 0;
+    Formula::conflict_count = 0;
+    Formula::conflict_count_limit = 100;
 
     run_time = std::chrono::high_resolution_clock::duration::zero();
 }

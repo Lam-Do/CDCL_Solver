@@ -114,7 +114,7 @@ bool Clause::checkAllClausesSAT() {
  */
 int Clause::getUnsetLiteralsCount() const {return this->free_literals.size();}
 
-int Clause::getWidth() {return this->pos_literals_list.size() + this->neg_literals_list.size();}
+int Clause::getWidth() const {return this->pos_literals_list.size() + this->neg_literals_list.size();}
 /**
  * Print all data saved by this instances of class Clause.
  */
@@ -376,4 +376,13 @@ void Formula::removeSATClauses(){
             }
         }
     }
+}
+
+/**
+ * Set CONFLICT flag. Save the conflict clause.
+ */
+void Clause::reportConflict() {
+    Clause::CONFLICT = true;
+    Clause::conflict_clause = this;
+    Formula::conflict_count++;
 }
