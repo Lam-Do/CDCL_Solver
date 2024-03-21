@@ -46,10 +46,7 @@ int Formula::conflict_count_limit = 100;
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
 void parse(const vector<vector<int>>& formula);
-void simplify();
-void removeSATClauses();
 void pureLiteralsEliminate();
-void removeInitialUnitClauses();
 void reset();
 //DPLL
 void runDPLL(const std::string&);
@@ -264,6 +261,7 @@ vector<vector<int>> readDIMACS(const string& path) {
     std::string line;
     while (std::getline(infile, line)) {
         std::istringstream iss(line);
+        if (line.empty()) continue;
         std::string token;
         iss >> token; // first word/number of the line;
 
