@@ -46,7 +46,6 @@ int Formula::conflict_count_limit = 100;
 // Declare function
 vector<vector<int>> readDIMACS(const string& path);
 void parse(const vector<vector<int>>& formula);
-void pureLiteralsEliminate();
 void reset();
 //DPLL
 void runDPLL(const std::string&);
@@ -65,6 +64,9 @@ bool Printer::print_CDCL_process = false;
 bool Printer::print_assignment = false;
 bool Printer::print_learned_clause = false;
 bool Printer::print_max_depth_literal = false;
+bool Printer::check_delete_process = false;
+bool Printer::check_restart_process = false;
+bool Printer::check_NiVER = false;
 std::unordered_set<Literal*> Printer::flipped_literals = {};
 
 int main() {

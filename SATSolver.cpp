@@ -27,7 +27,7 @@ void Literal::setFree() {
 }
 
 /**
- * Counting all positive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called.
+ * Counting all positive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called. Must called under free literal condition.
  * Occurrences in SAT clauses will not be counted.
  * @param w  Maximal number of free literals of clauses in pos_occ. If bigger than actual number of clause's size. Simply count all.
  * @return  Number of occurrence
@@ -42,7 +42,7 @@ int Literal::getActualPosOcc(int w) {
     return occ;
 }
 /**
- * Counting all negtive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called.
+ * Counting all negtive occurrence in UNSAT clauses with number of free literal less or equal w, by the time called. Must called under free literal condition.
  * Occurrences in SAT clauses will not be counted.
  * @param w Maximal number of free literals of clauses in neg_occ. If bigger than actual number of clause's size. Simply count all.
  * @return Number of occurrence
@@ -355,11 +355,14 @@ void Printer::printResult() {
     std::cout << std::endl;
 }
 
-
+/**
+ * Apply some preporecess methods
+ */
 void Formula::preprocessing() {
     Formula::removeInitialUnitClauses();
     Formula::removeSATClauses();
     Formula::pureLiteralsEliminate();
+    Formula::NiVER();
 }
 
 /**
@@ -406,20 +409,142 @@ void Formula::removeSATClauses(){
 
 /**
  * Assign value to all pure literals, which have at the moment of calling function only positive or negative occurrences in UNSAT clauses, with forced assignment.
- * Pure literals can appear during process after remove SAT clauses are SAT from consideration.
+ * Pure literals can appear after remove SAT clauses from consideration.
+ * Since pure literals are assigned to satisfy clauses, CONFLICT can't be raised.
  */
 void Formula::pureLiteralsEliminate() {
     if (Printer::print_CDCL_process) std::cout << "Pure literal eliminating..." << "\n";
-    for (const auto& id2ad : Literal::id2Lit) {
-        Literal* l = id2ad.second;
-        if (l->isFree) {
-            if (l->getActualPosOcc(INT_MAX) == 0) {
-                l->assignValueCDCL(false, Assignment::IsForced);
-            } else if (l->getActualNegOcc(INT_MAX) == 0) {
-                l->assignValueCDCL(true, Assignment::IsForced);
+    bool new_pure_literal = true; // Flag if there is a new pure literal
+    while (new_pure_literal) {// Loop until no new pure literal
+        new_pure_literal = false;
+        for (const auto& id2ad : Literal::id2Lit) {
+            Literal* l = id2ad.second;
+            if (l->isFree) {
+                int actual_pos_occ = l->getActualPosOcc(INT_MAX);
+                int actual_neg_occ = l->getActualNegOcc(INT_MAX);
+                if (actual_pos_occ == 0) {
+                    l->assignValueCDCL(false, Assignment::IsForced);
+                    new_pure_literal = true;
+                } else if (actual_neg_occ == 0) {
+                    l->assignValueCDCL(true, Assignment::IsForced);
+                    new_pure_literal = true;
+                }
             }
         }
     }
+}
+
+/**
+ * Delete variables using NiVER algorithms
+ */
+void Formula::NiVER() {
+    bool change = true;
+    while (change) {
+        change = false;
+
+        for (auto [id, literal_x] : Literal::id2Lit) {
+
+            // Find all possiable resolvent
+            std::unordered_set<Literal*> all_clauses_lit_occ;
+            all_clauses_lit_occ.insert(literal_x);
+            std::unordered_set<Literal*> all_resolvents_lit_occ;
+            std::vector<std::vector<int>> resolvents_S; // resovented clauses in vector of int form
+            for (Clause* x_pos_occ_clause : literal_x->pos_occ) {
+                std::unordered_set<Literal*> p1 = x_pos_occ_clause->getAllLiterals();
+                p1.erase(literal_x);
+
+                for (Clause* x_neg_occ_clause : literal_x->neg_occ) {
+                    std::vector<int> resol_holder;
+
+                    std::unordered_set<Literal*> p2 = x_neg_occ_clause->getAllLiterals();
+                    p2.erase(literal_x);
+
+                    // TAUTOLOGY CHECKING AND ADDING TO RESOLVENTED CLAUSE LIST
+                    std::unordered_set<Literal*> intersect = findIntersection(p1,p2);
+                    if (intersect.empty()) { // mean no same literal beside literal_x -> not tautology
+                        for (Literal* literal_z : p1) {
+                            all_resolvents_lit_occ.insert(literal_z);
+                            all_clauses_lit_occ.insert(literal_z);
+                            if (literal_z->pos_occ.contains(x_pos_occ_clause)) {// literal_z is pos in resolvent
+                                resol_holder.push_back(literal_z->id);
+                            } else resol_holder.push_back(-literal_z->id);
+                        }
+                        for (Literal* literal_z : p2) {
+                            all_resolvents_lit_occ.insert(literal_z);
+                            all_clauses_lit_occ.insert(literal_z);
+                            if (literal_z->pos_occ.contains(x_neg_occ_clause)) {// literal_z is pos in resolvent
+                                resol_holder.push_back(literal_z->id);
+                            } else resol_holder.push_back(-literal_z->id);
+                        }
+                        resolvents_S.push_back(resol_holder);
+                        resol_holder.clear();
+
+                    } else { // intersect has some same literals
+                        // check Tautology by checking opposite occ
+                        bool isTautology = false; // flag
+                        for (Literal* literal_y : intersect) {
+                            // tautology case
+                            if (literal_y->pos_occ.contains(x_pos_occ_clause) && literal_y->neg_occ.contains(x_neg_occ_clause)) {
+                                isTautology = true;
+                                break;
+                            }
+                            if (literal_y->pos_occ.contains(x_neg_occ_clause) && literal_y->neg_occ.contains(x_pos_occ_clause)) {
+                                isTautology = true;
+                                break;
+                            }
+                            // remove y from p1 and p2 to add separate from other variable, avoid duplicate in clause vector form in cause p1+p2 not tautology
+                            p1.erase(literal_y);
+                            p2.erase(literal_y);
+                        }
+
+                        if (!isTautology){
+                            for (Literal* literal_z : p1) {
+                                all_resolvents_lit_occ.insert(literal_z);
+                                all_clauses_lit_occ.insert(literal_z);
+                                if (literal_z->pos_occ.contains(x_pos_occ_clause)) {// literal_z is pos in resolvent
+                                    resol_holder.push_back(literal_z->id);
+                                } else resol_holder.push_back(-literal_z->id);
+                            }
+                            for (Literal* literal_z : p2) {
+                                all_resolvents_lit_occ.insert(literal_z);
+                                all_clauses_lit_occ.insert(literal_z);
+                                if (literal_z->pos_occ.contains(x_neg_occ_clause)) {// literal_z is pos in resolvent
+                                    resol_holder.push_back(literal_z->id);
+                                } else resol_holder.push_back(-literal_z->id);
+                            }
+                            // y in both p1 and p2, add separate avoid dup
+                            for (Literal* literal_y : intersect) {
+                                all_resolvents_lit_occ.insert(literal_y);
+                                all_clauses_lit_occ.insert(literal_y);
+                                if (literal_y->pos_occ.contains(x_neg_occ_clause)) {// literal_y is pos in resolvent
+                                    resol_holder.push_back(literal_y->id);
+                                } else resol_holder.push_back(-literal_y->id);
+                            }
+                            resolvents_S.push_back(resol_holder);
+                            resol_holder.clear();
+                        }
+                    }
+                }
+            }
+
+            // Check SIZE and update data structure. Literal x got deleted by deleting all old clauses, disconnected from data structure
+            if (all_resolvents_lit_occ.size() < all_clauses_lit_occ.size() && resolvents_S.size() < literal_x->pos_occ.size() + literal_x->neg_occ.size()) {
+                change = true;
+                literal_x->isFree = false;  // hide from static field, can't set free again since no clause contain x
+                for (auto c : resolvents_S) {
+                    Clause::setNewClause(c);
+                }
+                for (Clause* c : literal_x->pos_occ) {
+                    c->deleteClause();
+                }
+                for (Clause* c : literal_x->neg_occ) {
+                    c->deleteClause();
+                }
+                if (Printer::check_NiVER) std::cout << "Literal " << literal_x->id << " is deleted" << "\n";
+            }
+        }
+    }
+    if (Printer::check_NiVER) std::cout << "NiVER done" << "\n";
 }
 
 /**

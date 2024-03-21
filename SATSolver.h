@@ -163,6 +163,7 @@ struct Formula {
     static void removeInitialUnitClauses();
     static void removeSATClauses();
     static void pureLiteralsEliminate();
+    static void NiVER();
 };
 
 struct Printer {
@@ -173,6 +174,9 @@ struct Printer {
     static bool print_assignment;
     static bool print_learned_clause;
     static bool print_max_depth_literal;
+    static bool check_delete_process;
+    static bool check_restart_process;
+    static bool check_NiVER;
     static std::unordered_set<Literal*> flipped_literals;
 
     static void printAssignmentStack();

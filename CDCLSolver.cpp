@@ -357,6 +357,11 @@ bool Clause::isDecisionCut(const std::unordered_set<Literal *>& cut) {
     return true;
 }
 
+/**
+ * Finding if a cut is asserting, meaning contain only one literal with max branching depth
+ * @param cut graph cut
+ * @return true if asserting, false otherwise
+ */
 bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
     int maximal_bd_literal_count = 0;
     for (Literal* l : cut) {
@@ -369,7 +374,10 @@ bool Clause::isAsserting(const std::unordered_set<Literal *>& cut) {
         return true;
     }
 }
-
+/**
+ * Using VSIDS heuristic to choose a free literal for branching. Value is choose base on pos_occ and neg_occ
+ * @return tuple contain address to literal and chosen value for assigning
+ */
 std::tuple<Literal*, bool> Heuristic::VSIDS() {
     Literal *chosen_literal = nullptr;
     bool value = false;
@@ -403,6 +411,9 @@ void LearnedClause::setWatchedLiteral(Literal * l) {
     if (this->watched_literal_2 == nullptr && this->watched_literal_1 != l) this->watched_literal_2 = l;
 }
 
+/**
+ * Update literals' priority base on VSIDS heuristic
+ */
 void Literal::updatePriorities() {
     // Empty priority queue
     while (!Literal::pq.empty()) {
@@ -444,6 +455,9 @@ void Clause::deleteClause() {
     Clause::list.erase(this);
 }
 
+/**
+ * Disconnect the clause from data structure, except original clause_count
+ */
 void LearnedClause::deleteLearnedClause() {
     this->deleteClause();
     LearnedClause::learned_list.erase(this);
@@ -468,10 +482,14 @@ void LearnedClause::checkDeletion() {
             c->deleteLearnedClause();
             delete c;
         }
+        if (Printer::check_delete_process) std::cout << "Delete success" << "\n";
     }
 
 }
 
+/**
+ * Restart by empty unit queue and assignment stack, reset some counter and static variables.
+ */
 void Formula::restart() {
     while (!Literal::unit_queue.empty()) {
         Literal::unit_queue.front()->reason = nullptr;
@@ -493,4 +511,6 @@ void Formula::restart() {
     Formula::conflict_count = 0;
     Formula::conflict_count_limit = Formula::conflict_count_limit * 1.5;
     Printer::flipped_literals.clear();
+
+    if (Printer::check_restart_process) std::cout << "restart success" << "\n";
 }
