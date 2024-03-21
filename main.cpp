@@ -259,6 +259,7 @@ vector<vector<int>> readDIMACS(const string& path) {
     }
 
     vector<vector<int>> formula;
+    vector<int> clause_holder;
 
     std::string line;
     while (std::getline(infile, line)) {
@@ -281,17 +282,20 @@ vector<vector<int>> readDIMACS(const string& path) {
                 Formula::clause_count = std::stoi(token);
             }
         } else if (token == "0") { // if the line start with 0, will also be ignored
+            formula.emplace_back(clause_holder); // add clause to formula
+            clause_holder.clear(); // reset holder
             continue;
         } else { // not c or p or 0, if file in correct format, this should be a number presenting variable or literal
             int variable = std::stoi(token);
-            formula.emplace_back(vector<int> {}); // new empty clause
-            formula.back().emplace_back(variable); // add first variable
+            clause_holder.emplace_back(variable); // add first variable to holder
             while (iss >> token) { // if not end of the line
                 if (token == "0") {
+                    formula.emplace_back(clause_holder); // when meet 0 as token, add finished clause to formula
+                    clause_holder.clear(); // reset holder
                     break;
                 }
                 variable = std::stoi(token);
-                formula.back().emplace_back(variable);
+                clause_holder.emplace_back(variable);
             }
         }
     }
