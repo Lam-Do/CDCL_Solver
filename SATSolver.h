@@ -177,7 +177,7 @@ struct Printer {
     static bool check_delete_process;
     static bool check_restart_process;
     static bool check_NiVER;
-    static std::unordered_set<Literal*> flipped_literals;
+    static std::unordered_set<Literal*> solution;
 
     static void printAssignmentStack();
     static void printAssignmentHistory();

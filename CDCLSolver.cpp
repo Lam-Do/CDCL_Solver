@@ -214,7 +214,7 @@ void Clause::learnCut(const std::unordered_set<Literal *>& cut) {
             l->reason = new_clause;
             new_clause->watched_literal_1 = l; // mark first watched literal, second one is assigned later by first time unassigned
 
-            Printer::flipped_literals.insert(l);
+            Printer::solution.insert(l);
             if (Printer::print_max_depth_literal) {
                 l->printData();
                 std::cout<< "has depth " << l->branching_level << "\n";
@@ -325,8 +325,6 @@ void Assignment::branchingCDCL() {
         Formula::branching_count = 0;
     }
     std::tuple<Literal*, bool> t = Heuristic::VSIDS();
-//    if (Assignment::branching_heuristic == "BerkMin") t = Heuristic::BerkMin();
-//    if (Assignment::branching_heuristic == "VMTF") t = Heuristic::VMTF();
     Literal* branching_literal = std::get<0>(t);
     bool assigning_value = std::get<1>(t);
     if (std::get<0>(t) != nullptr) {
@@ -396,6 +394,8 @@ std::tuple<Literal*, bool> Heuristic::VSIDS() {
         if (Printer::print_CDCL_process) {
             std::cout << "Can't branching, all literals are assigned." << "\n";
             Printer::printAssignmentStack();
+        }
+        if (!Formula::isSAT && !Formula::isSAT && !Clause::CONFLICT) {
         }
     }
     return std::make_tuple(chosen_literal, value);
@@ -510,7 +510,7 @@ void Formula::restart() {
     Formula::branching_count = 0;
     Formula::conflict_count = 0;
     Formula::conflict_count_limit = Formula::conflict_count_limit * 1.5;
-    Printer::flipped_literals.clear();
+    Printer::solution.clear();
 
     if (Printer::check_restart_process) std::cout << "restart success" << "\n";
 }

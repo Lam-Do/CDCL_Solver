@@ -66,8 +66,8 @@ bool Printer::print_learned_clause = false;
 bool Printer::print_max_depth_literal = false;
 bool Printer::check_delete_process = false;
 bool Printer::check_restart_process = false;
-bool Printer::check_NiVER = false;
-std::unordered_set<Literal*> Printer::flipped_literals = {};
+bool Printer::check_NiVER = true;
+std::unordered_set<Literal*> Printer::solution = {};
 
 int main() {
     string path;
@@ -238,7 +238,7 @@ void reset() {
     Formula::conflict_count = 0;
     Formula::conflict_count_limit = 100;
 
-    Printer::flipped_literals.clear();
+    Printer::solution.clear();
     run_time = std::chrono::high_resolution_clock::duration::zero();
 }
 
